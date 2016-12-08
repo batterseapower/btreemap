@@ -1,3 +1,5 @@
+package uk.co.omegaprime.btree;
+
 import java.util.*;
 
 public class BTreeMap<K, V> implements NavigableMap<K, V> {
@@ -23,7 +25,26 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     // We're going to do a generalized (2, 3) tree i.e. each internal node will have between m and (2m - 1) children inclusive, for m >= 2
-    private static final int MIN_FANOUT = 2;
+    //
+    // What's a sensible value for m? It would be good if each array we allocate fits within one cache line. On Skylake,
+    // cache lines are 64 bytes, and with compressed OOPS (default for heap sizes < 32GB) object pointers are only 4 bytes long,
+    // implying that MAX_FANOUT = 16 would be a good choice, i.e. MIN_FANOUT = 8.
+    //
+    // With MIN_FANOUT=2:
+    //   Benchmark               Mode  Cnt        Score        Error  Units
+    //   BTreeMapBenchmark.get  thrpt   40  1900386.806 ± 115791.569  ops/s
+    //   BTreeMapBenchmark.put  thrpt   40  1617089.096 ±  32891.292  ops/s
+    //
+    // With MIN_FANOUT=8:
+    //   Benchmark               Mode  Cnt        Score        Error  Units
+    //   BTreeMapBenchmark.get  thrpt   40  4021130.733 ±  31473.315  ops/s
+    //   BTreeMapBenchmark.put  thrpt   40  2821784.716 ± 141837.270  ops/s
+    //
+    // java.util.TreeMap:
+    //   Benchmark               Mode  Cnt        Score        Error  Units
+    //   BTreeMapBenchmark.get  thrpt   40  3226633.131 ± 195725.464  ops/s
+    //   BTreeMapBenchmark.put  thrpt   40  2561772.533 ±  31611.667  ops/s
+    private static final int MIN_FANOUT = 8;
     private static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
 
     private interface Node {}
@@ -297,8 +318,19 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public V getOrDefault(Object key, V dflt) {
+        final Object[] resultBox = new Object[1];
+        return getInternal(key, resultBox) ? (V)resultBox[0] : dflt;
+
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return getInternal(key, null);
+    }
+
+    private boolean getInternal(Object key, Object[] resultBox) {
         if (root == null) {
-            return dflt;
+            return false;
         }
 
         Node next = root;
@@ -310,7 +342,14 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         final Leaf node = (Leaf)next;
         final int ix = node.find(key, comparator);
-        return ix < 0 ? dflt : (V)node.get(ix);
+        if (ix < 0) {
+            return false;
+        } else {
+            if (resultBox != null) {
+                resultBox[0] = node.get(ix);
+            }
+            return true;
+        }
     }
 
     @Override
@@ -395,11 +434,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     public String toString() {
         // FIXME: replace with non-debugging printer
         return root == null ? "{}" : root.toString();
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        throw new UnsupportedOperationException(); // FIXME
     }
 
     @Override

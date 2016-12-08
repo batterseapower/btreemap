@@ -1,3 +1,5 @@
+package uk.co.omegaprime.btree;
+
 import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.GenerationStatus;
@@ -6,8 +8,10 @@ import com.pholser.junit.quickcheck.generator.Size;
 import com.pholser.junit.quickcheck.generator.java.lang.StringGenerator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.openjdk.jmh.Main;
 
 import java.util.List;
 import java.util.Map;
@@ -29,7 +33,7 @@ public class BTreeMapTest {
 
         @Override
         public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
-            assertEquals(expected.get(key), actual.get(key));
+            Assert.assertEquals(expected.get(key), actual.get(key));
         }
 
         @Override
@@ -48,7 +52,7 @@ public class BTreeMapTest {
 
         @Override
         public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
-            assertEquals(expected.put(key, value), actual.put(key, value));
+            Assert.assertEquals(expected.put(key, value), actual.put(key, value));
         }
 
         @Override
@@ -96,7 +100,7 @@ public class BTreeMapTest {
             i++;
 
             for (Map.Entry<Integer, Integer> e : expected.entrySet()) {
-                assertEquals(e.getValue(), actual.get(e.getKey()));
+                Assert.assertEquals(e.getValue(), actual.get(e.getKey()));
             }
         }
     }
