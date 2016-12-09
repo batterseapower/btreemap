@@ -53,14 +53,14 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     //   - The next MAX_FANOUT elements will hold references to the Object[] of child nodes
     //   - The final element will hold a reference to a int[] of child node sizes
     //  2. A primitive int allocated at some position in an int[] (or, for the root node, in the BTreeMap itself).
-    //     This primitive int will be strictly negative. It is the number of child nodes that are present.
+    //     This represents the number of child nodes that are present.
     //
     // Each leaf node will be represented by:
     //  1. An Object[] keysValues of size MAX_FANOUT * 2
     //   - The first MAX_FANOUT elements will refer to keys
     //   - The next MAX_FANOUT elements will refer to values
     //  2. A primitive int allocated in an int[] (or, for the root node, in the BTreeMap itself).
-    //     This primitive int will be non-negative: it is the number of keys that are defined
+    //     This represents the number of keys that are defined
     //
     // Going from a boxed representation where I had a "Leaf" class and an "Internal" class that
     // held the relevant data, to a representation where I unbox everything these arrays gave a small speedup.
@@ -72,13 +72,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     //
     // After:
     //   Benchmark               Mode  Cnt        Score       Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  4054259.892 ± 84642.583  ops/s
+    //   BTreeMapBenchmark.get  thrpt   40  4098087.237 ±  31602.117  ops/s
     //   BTreeMapBenchmark.put  thrpt   40  3015353.400 ± 80293.635  ops/s
-
-
-    private static boolean isInternal(int size) {
-        return size < 0;
-    }
 
     private static class BubbledInsertion {
         private final Object[] leftObjects, rightObjects;
@@ -98,7 +93,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         private Leaf() {}
 
         public static int find(Object[] keysValues, int size, Object key, Comparator comparator) {
-            assert size >= 0;
             return Arrays.binarySearch(keysValues, 0, size, key, comparator);
         }
 
@@ -116,24 +110,22 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         }
 
         public static boolean canPutAtIndex(int size, int index) {
-            assert size >= 0;
             return index >= 0 || size < MAX_FANOUT;
         }
 
         /** @param index must be the index of key in the leaf, using same convention as Arrays.binarySearch */
         public static Object putAtIndex(Object[] keysValues, int[] sizeBox, int sizeIndex, int index, Object key, Object value) {
-            assert sizeBox[sizeIndex] >= 0;
             assert canPutAtIndex(sizeBox[sizeIndex], index);
 
             final Object result;
             if (index < 0) {
-                final int size_ = sizeBox[sizeIndex];
-                assert size_ < MAX_FANOUT;
+                final int size = sizeBox[sizeIndex];
+                assert size < MAX_FANOUT;
 
                 final int insertionPoint = -(index + 1);
-                System.arraycopy(keysValues,              insertionPoint, keysValues,              insertionPoint + 1, size_ - insertionPoint);
-                System.arraycopy(keysValues, MAX_FANOUT + insertionPoint, keysValues, MAX_FANOUT + insertionPoint + 1, size_ - insertionPoint);
-                sizeBox[sizeIndex] = size_ + 1;
+                System.arraycopy(keysValues,              insertionPoint, keysValues,              insertionPoint + 1, size - insertionPoint);
+                System.arraycopy(keysValues, MAX_FANOUT + insertionPoint, keysValues, MAX_FANOUT + insertionPoint + 1, size - insertionPoint);
+                sizeBox[sizeIndex] = size + 1;
 
                 keysValues[insertionPoint] = key;
 
@@ -155,7 +147,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         // This splits the leaf (of size MAX_FANOUT == 2 * MIN_FANOUT - 1) plus one extra item into two new
         // leaves, each of size MIN_FANOUT.
         public static BubbledInsertion bubblePutAtIndex(Object[] keysValues, int size, int index, Object key, Object value) {
-            assert size >= 0;
             assert !canPutAtIndex(size, index);
             assert size == MAX_FANOUT; // i.e. implies index < 0
 
@@ -209,8 +200,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         /** Always returns a valid index into the nodes array */
         public static int find(Object[] repr, int size, Object key, Comparator comparator) {
-            assert size < 0;
-            final int index = Arrays.binarySearch(repr, getKeyIndex(0), getKeyIndex(-size - 1), key, comparator);
+            final int index = Arrays.binarySearch(repr, getKeyIndex(0), getKeyIndex(size - 1), key, comparator);
             if (index < 0) {
                 final int insertionPoint = -(index + 1);
                 return insertionPoint;
@@ -220,12 +210,10 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         }
 
         public static boolean canPutAtIndex(int size) {
-            assert size < 0;
-            return -size < MAX_FANOUT;
+            return size < MAX_FANOUT;
         }
 
         public static void putAtIndex(Object[] repr, int[] sizeBox, int sizeIndex, int nodeIndex, BubbledInsertion toBubble) {
-            assert sizeBox[sizeIndex] < 0;
             assert canPutAtIndex(sizeBox[sizeIndex]);
 
             // Tree:         Bubbled input:
@@ -235,22 +223,21 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             //  Key   0  S  1
             //  Node 0 1A 1B 2
 
-            final int _size = -sizeBox[sizeIndex];
+            final int size = sizeBox[sizeIndex];
             final int[] sizes = getSizes(repr);
-            System.arraycopy(repr,  getKeyIndex (nodeIndex),     repr,  getKeyIndex (nodeIndex + 1), _size - nodeIndex - 1);
-            System.arraycopy(repr,  getNodeIndex(nodeIndex + 1), repr,  getNodeIndex(nodeIndex + 2), _size - nodeIndex - 1);
-            System.arraycopy(sizes,              nodeIndex + 1,  sizes,              nodeIndex + 2,  _size - nodeIndex - 1);
+            System.arraycopy(repr,  getKeyIndex (nodeIndex),     repr,  getKeyIndex (nodeIndex + 1), size - nodeIndex - 1);
+            System.arraycopy(repr,  getNodeIndex(nodeIndex + 1), repr,  getNodeIndex(nodeIndex + 2), size - nodeIndex - 1);
+            System.arraycopy(sizes,              nodeIndex + 1,  sizes,              nodeIndex + 2,  size - nodeIndex - 1);
             repr [getKeyIndex (nodeIndex)    ] = toBubble.separator;
             repr [getNodeIndex(nodeIndex)    ] = toBubble.leftObjects;
             sizes[             nodeIndex     ] = toBubble.leftSize;
             repr [getNodeIndex(nodeIndex + 1)] = toBubble.rightObjects;
             sizes[             nodeIndex + 1 ] = toBubble.rightSize;
 
-            sizeBox[sizeIndex] = -(_size + 1);
+            sizeBox[sizeIndex] = size + 1;
         }
 
         public static BubbledInsertion bubblePutAtIndex(Object[] repr, int size, int nodeIndex, BubbledInsertion toBubble) {
-            assert size < 0;
             assert !canPutAtIndex(size); // i.e. size == MAX_FANOUT
 
             final int[] sizes = getSizes(repr);
@@ -331,7 +318,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 rSizes[             nodeIndex + 1]  = toBubble.rightSize;
             }
 
-            return new BubbledInsertion(l, r, -MIN_FANOUT, -MIN_FANOUT, separator);
+            return new BubbledInsertion(l, r, MIN_FANOUT, MIN_FANOUT, separator);
         }
     }
 
@@ -363,12 +350,12 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 assert Leaf.getKey(repr, i) != null;
             }
         } else {
-            for (int i = 0; i < -size - 1; i++) {
+            for (int i = 0; i < size - 1; i++) {
                 assert Internal.getKey(repr, i) != null;
             }
 
             final int[] sizes = Internal.getSizes(repr);
-            for (int i = 0; i < -size; i++) {
+            for (int i = 0; i < size; i++) {
                 checkCore(Internal.getNode(repr, i), sizes, i, depth - 1);
             }
         }
@@ -453,7 +440,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         final int[] sizes = new int[MAX_FANOUT];
 
         this.rootObjects = new Object[2 * MAX_FANOUT];
-        this.rootSizeBox[0] = -2;
+        this.rootSizeBox[0] = 2;
         this.rootObjects[MAX_FANOUT * 2 - 1] = sizes;
         this.rootObjects[Internal.getKeyIndex(0)] = toBubble.separator;
         this.rootObjects[Internal.getNodeIndex(0)] = toBubble.leftObjects;
@@ -522,8 +509,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     private static String toStringInternal(Object[] repr, int size, int depth) {
         if (depth == 0) {
-            assert size >= 0;
-
             final StringBuilder sb = new StringBuilder();
             for (int i = 0; i < size; i++) {
                 if (sb.length() != 0) sb.append(", ");
@@ -535,7 +520,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             final int[] sizes = Internal.getSizes(repr);
 
             final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < -size; i++) {
+            for (int i = 0; i < size; i++) {
                 if (sb.length() != 0) {
                     sb.append(" |").append(Internal.getKey(repr, i - 1)).append("| ");
                 }
