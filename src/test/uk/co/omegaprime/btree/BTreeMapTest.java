@@ -20,6 +20,7 @@ import java.util.TreeMap;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnitQuickcheck.class)
 public class BTreeMapTest {
@@ -40,6 +41,16 @@ public class BTreeMapTest {
         public String toString() {
             return String.format("Get(%s)", key);
         }
+    }
+
+    public static class Size implements Operation {
+        @Override
+        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
+            Assert.assertEquals(expected.size(), actual.size());
+        }
+
+        @Override
+        public String toString() { return "Size"; }
     }
 
     public static class Put implements Operation {
@@ -68,17 +79,18 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(2)) {
+            switch (sourceOfRandomness.nextInt(3)) {
                 case 0: return new Get(new StringGenerator().generate(sourceOfRandomness, generationStatus));
                 case 1: return new Put(new StringGenerator().generate(sourceOfRandomness, generationStatus),
                                        sourceOfRandomness.nextInt());
+                case 2: return new Size();
                 default: throw new IllegalStateException();
             }
         }
     }
 
     @Property
-    public void randomOperationSequence(@Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+    public void randomOperationSequence(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
         final TreeMap<String, Integer> expected = new TreeMap<>();
         final BTreeMap<String, Integer> actual = BTreeMap.create();
 
@@ -103,5 +115,19 @@ public class BTreeMapTest {
                 Assert.assertEquals(e.getValue(), actual.get(e.getKey()));
             }
         }
+    }
+
+    // Mostly useful for finding out whether this crashes or not
+    @Test
+    public void putLinear() {
+        final int KEYS = 100_000;
+
+        final Random random = new Random(1337);
+        final BTreeMap<Integer, Integer> map = BTreeMap.create();
+        for (int i = 0; i < KEYS; i++) {
+            map.put(random.nextInt(KEYS), i);
+        }
+
+        assertEquals(map.get(-1), null);
     }
 }
