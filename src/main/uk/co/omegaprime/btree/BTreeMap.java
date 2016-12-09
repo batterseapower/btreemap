@@ -97,18 +97,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     private static class Leaf {
         private Leaf() {}
 
-        public static String toString(Object[] keysValues, int size) {
-            assert size >= 0;
-
-            final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < size; i++) {
-                if (sb.length() != 0) sb.append(", ");
-                sb.append(getKey(keysValues, i)).append(": ").append(getValue(keysValues, i));
-            }
-
-            return sb.toString();
-        }
-
         public static int find(Object[] keysValues, int size, Object key, Comparator comparator) {
             assert size >= 0;
             return Arrays.binarySearch(keysValues, 0, size, key, comparator);
@@ -217,22 +205,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         private static int[] getSizes(Object[] repr) {
             return (int[])repr[getNodeIndex(MAX_FANOUT)];
-        }
-
-        public static String toString(Object[] repr, int size) {
-            final int[] sizes = getSizes(repr);
-
-            final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < -size; i++) {
-                if (sb.length() != 0) {
-                    sb.append(" |").append(getKey(repr, i - 1)).append("| ");
-                }
-                final Object[] node = getNode(repr, i);
-                final int nodeSize = sizes[i];
-                sb.append("{").append(isInternal(nodeSize) ? Internal.toString(node, nodeSize) : Leaf.toString(node, nodeSize)).append("}");
-            }
-
-            return sb.toString();
         }
 
         /** Always returns a valid index into the nodes array */
@@ -545,7 +517,35 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     @Override
     public String toString() {
         // FIXME: replace with non-debugging printer
-        return rootObjects == null ? "{}" : isInternal(rootSizeBox[0]) ? Internal.toString(rootObjects, rootSizeBox[0]) : Leaf.toString(rootObjects, rootSizeBox[0]);
+        return rootObjects == null ? "{}" : toStringInternal(rootObjects, rootSizeBox[0], depth);
+    }
+
+    private static String toStringInternal(Object[] repr, int size, int depth) {
+        if (depth == 0) {
+            assert size >= 0;
+
+            final StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < size; i++) {
+                if (sb.length() != 0) sb.append(", ");
+                sb.append(Leaf.getKey(repr, i)).append(": ").append(Leaf.getValue(repr, i));
+            }
+
+            return sb.toString();
+        } else {
+            final int[] sizes = Internal.getSizes(repr);
+
+            final StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < -size; i++) {
+                if (sb.length() != 0) {
+                    sb.append(" |").append(Internal.getKey(repr, i - 1)).append("| ");
+                }
+                final Object[] node = Internal.getNode(repr, i);
+                final int nodeSize = sizes[i];
+                sb.append("{").append(toStringInternal(node, nodeSize, depth - 1)).append("}");
+            }
+
+            return sb.toString();
+        }
     }
 
     @Override
