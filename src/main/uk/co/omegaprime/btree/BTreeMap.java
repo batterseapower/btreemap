@@ -198,7 +198,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             return (int[])repr[getNodeIndex(MAX_FANOUT)];
         }
 
-        /** Always returns a valid index into the nodes array */
+        /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
         public static int find(Object[] repr, int size, Object key, Comparator comparator) {
             final int index = Arrays.binarySearch(repr, getKeyIndex(0), getKeyIndex(size - 1), key, comparator);
             if (index < 0) {
@@ -328,8 +328,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     private Object[] rootObjects;
     private int[] rootSizeBox;
 
-    private int depth = 0; // Number of levels of internal nodes in the tree
-    private int size = 0;
+    private int depth; // Number of levels of internal nodes in the tree
+    private int size;
 
     private BTreeMap(Comparator<? super K> comparator) {
         this.comparator = comparator;
@@ -359,6 +359,14 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 checkCore(Internal.getNode(repr, i), sizes, i, depth - 1);
             }
         }
+    }
+
+    @Override
+    public void clear() {
+        rootObjects = null;
+        rootSizeBox = null;
+        depth = 0;
+        size = 0;
     }
 
     @Override
@@ -452,11 +460,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         return null;
     }
 
-    @Override
-    public V remove(Object key) {
-        return null;
-    }
-
     private BubbledInsertion putInternal(K key, V value, Object[] nextObjects, int[] nextSizeBox, int nextSizeIx, int depth, Object[] resultBox) {
         final int size = nextSizeBox[nextSizeIx];
         if (depth == 0) {
@@ -533,19 +536,49 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         }
     }
 
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException(); // FIXME
+    static <K, V> K getEntryKey(Entry<K, V> e) {
+        return e == null ? null : e.getKey();
     }
 
     @Override
     public Entry<K, V> lowerEntry(K key) {
-        throw new UnsupportedOperationException(); // FIXME
+        if (rootObjects == null) {
+            return null;
+        }
+
+        Object[] repr = rootObjects;
+        int size = rootSizeBox[0];
+        int depth = this.depth;
+
+        while (depth > 0) {
+            final int index = Internal.find(repr, size, key, comparator);
+            if (index > 0) {
+                size = Internal.getSizes(repr)[index - 1];
+                repr = Internal.getNode(repr, index - 1);
+                depth--;
+            } else {
+                // index == 0
+                return null;
+            }
+        }
+
+        final int index = Leaf.find(repr, size, key, comparator);
+        final int gteKeyIndex = index >= 0 ? index : -(index + 1);
+
+        if (gteKeyIndex > 0) {
+            return new AbstractMap.SimpleImmutableEntry<>(
+                (K)Leaf.getKey  (repr, gteKeyIndex - 1),
+                (V)Leaf.getValue(repr, gteKeyIndex - 1)
+            );
+        } else {
+            // gteKeyIndex == 0
+            return null;
+        }
     }
 
     @Override
     public K lowerKey(K key) {
-        throw new UnsupportedOperationException(); // FIXME
+        return getEntryKey(lowerEntry(key));
     }
 
     @Override
@@ -605,7 +638,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public NavigableSet<K> navigableKeySet() {
-        throw new UnsupportedOperationException(); // FIXME
+        return new NavigableMapKeySet<K>(this);
     }
 
     @Override
@@ -654,8 +687,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Set<K> keySet() {
-        throw new UnsupportedOperationException(); // FIXME
+    public NavigableSet<K> keySet() {
+        return navigableKeySet();
     }
 
     @Override
@@ -665,6 +698,11 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public V remove(Object key) {
         throw new UnsupportedOperationException(); // FIXME
     }
 }

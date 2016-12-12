@@ -4,23 +4,18 @@ import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.GenerationStatus;
 import com.pholser.junit.quickcheck.generator.Generator;
-import com.pholser.junit.quickcheck.generator.Size;
 import com.pholser.junit.quickcheck.generator.java.lang.StringGenerator;
+import com.pholser.junit.quickcheck.generator.java.util.function.BiFunctionGenerator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.openjdk.jmh.Main;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.TreeMap;
-import java.util.stream.IntStream;
+import java.util.*;
+import java.util.function.BiFunction;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnitQuickcheck.class)
 public class BTreeMapTest {
@@ -28,19 +23,34 @@ public class BTreeMapTest {
         void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual);
     }
 
-    public static class Get implements Operation {
-        public final String key;
-        public Get(String key) { this.key = key; }
+    public abstract static class KeyedOperation<T> implements Operation {
+        private final String name;
+        private final String key;
+        private final BiFunction<NavigableMap<String, Integer>, String, T> f;
+
+        public KeyedOperation(String name, String key, BiFunction<NavigableMap<String, Integer>, String, T> f) {
+            this.name = name;
+            this.key = key;
+            this.f = f;
+        }
 
         @Override
         public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
-            Assert.assertEquals(expected.get(key), actual.get(key));
+            Assert.assertEquals(f.apply(expected, key), f.apply(actual, key));
         }
 
         @Override
         public String toString() {
-            return String.format("Get(%s)", key);
+            return String.format("%s(%s)", name, key);
         }
+    }
+
+    public static class Get extends KeyedOperation<Integer> {
+        public Get(String key) { super("Get", key, Map::get); }
+    }
+
+    public static class LowerEntry extends KeyedOperation<Map.Entry<String, Integer>> {
+        public LowerEntry(String key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
     }
 
     public static class Size implements Operation {
@@ -97,6 +107,19 @@ public class BTreeMapTest {
         for (Operation op : ops) {
             op.apply(expected, actual);
         }
+    }
+
+    @Test
+    public void lowerEntry() {
+        final BTreeMap<Integer, String> map = BTreeMap.create();
+        map.put(1, "One");
+        map.put(3, "Three");
+
+        assertEquals(null, map.lowerEntry(1));
+        assertEquals(Integer.valueOf(1), map.lowerEntry(2).getKey());
+        assertEquals("One",              map.lowerEntry(2).getValue());
+        assertEquals(Integer.valueOf(3), map.lowerEntry(4).getKey());
+        assertEquals("Three",            map.lowerEntry(4).getValue());
     }
 
     @Test

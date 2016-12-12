@@ -8,6 +8,8 @@ import java.util.Random;
 import java.util.TreeMap;
 
 public class BTreeMapBenchmark {
+    // -XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*BTreeMap.get
+
     public static final int KEYS = 100_000;
 
     @State(Scope.Thread)
