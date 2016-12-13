@@ -47,6 +47,9 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
     private static final int MIN_FANOUT = 8;
     private static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
 
+    // Linear search seems about ~20% faster than binary (for MIN_FANOUT = 8 at least)
+    private static final boolean BINARY_SEARCH = false;
+
     // Each internal node will be represented by:
     //  1. An Object[] keysNodes of size MAX_FANOUT * 2
     //   - The first MAX_FANOUT - 1 elements of this will refer to keys
@@ -93,8 +96,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         private Leaf() {}
 
         public static int find(Object[] keysValues, int size, Object key, Comparator comparator) {
-            // Linear search ~10% faster than binary search for MAX_FANOUT = 8 at least
-            if (false) {
+            if (BINARY_SEARCH) {
                 return Arrays.binarySearch(keysValues, 0, size, key, comparator);
             } else {
                 for (int i = 0; i < size; i++) {
@@ -215,8 +217,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
         public static int find(Object[] repr, int size, Object key, Comparator comparator) {
-            // Linear search seems about ~17% faster than binary (for MAX_FANOUT=8 at least)
-            if (false) {
+            if (BINARY_SEARCH) {
                 final int index = Arrays.binarySearch(repr, 0, size - 1, key, comparator);
                 return index < 0 ? -(index + 1) : index + 1;
             } else {
