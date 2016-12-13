@@ -580,16 +580,13 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         int size = rootSizeBox[0];
         int depth = this.depth;
 
-        while (depth > 0) {
-            final int index = Internal.find(repr, size, key, comparator);
-            if (index > 0) {
-                size = Internal.getSizes(repr)[index - 1];
-                repr = Internal.getNode(repr, index - 1);
-                depth--;
-            } else {
-                // index == 0
-                return null;
-            }
+        while (depth-- > 0) {
+            // FIXME: this is wrong. Consider searching for 3 in this tree where 2 is a valid key in the map:
+            // Keys:   2 4
+            // Nodes: A B C
+            final int index = Math.max(0, Internal.find(repr, size, key, comparator) - 1);
+            size = Internal.getSizes(repr)[index - 1];
+            repr = Internal.getNode(repr, index - 1);
         }
 
         final int index = Leaf.find(repr, size, key, comparator);
