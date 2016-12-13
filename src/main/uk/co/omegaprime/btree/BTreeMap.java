@@ -691,8 +691,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         } else {
             final int index = size - 1;
             return new AbstractMap.SimpleImmutableEntry<>(
-                    (K)Leaf.getKey  (repr, index),
-                    (V)Leaf.getValue(repr, index)
+                (K)Leaf.getKey  (repr, index),
+                (V)Leaf.getValue(repr, index)
             );
         }
     }
@@ -751,17 +751,17 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public SortedMap<K, V> subMap(K fromKey, K toKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return subMap(fromKey, true, toKey, false);
     }
 
     @Override
     public SortedMap<K, V> headMap(K toKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return headMap(toKey, false);
     }
 
     @Override
     public SortedMap<K, V> tailMap(K fromKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return tailMap(fromKey, true);
     }
 
     @Override
