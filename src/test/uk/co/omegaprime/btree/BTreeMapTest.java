@@ -5,7 +5,6 @@ import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.GenerationStatus;
 import com.pholser.junit.quickcheck.generator.Generator;
 import com.pholser.junit.quickcheck.generator.java.lang.StringGenerator;
-import com.pholser.junit.quickcheck.generator.java.util.function.BiFunctionGenerator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import org.junit.Assert;
@@ -14,6 +13,7 @@ import org.junit.runner.RunWith;
 
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 
@@ -53,14 +53,34 @@ public class BTreeMapTest {
         public LowerEntry(String key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
     }
 
-    public static class Size implements Operation {
-        @Override
-        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
-            Assert.assertEquals(expected.size(), actual.size());
+    public static class UnkeyedOperation<T> implements Operation {
+        private final String name;
+        private final Function<NavigableMap<String, Integer>, T> f;
+
+        public UnkeyedOperation(String name, Function<NavigableMap<String, Integer>, T> f) {
+            this.name = name;
+            this.f = f;
         }
 
         @Override
-        public String toString() { return "Size"; }
+        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
+            Assert.assertEquals(f.apply(expected), f.apply(actual));
+        }
+
+        @Override
+        public String toString() { return name; }
+    }
+
+    public static class Size extends UnkeyedOperation<Integer> {
+        public Size() { super("Size", NavigableMap::size); }
+    }
+
+    public static class FirstEntry extends UnkeyedOperation<Map.Entry<String, Integer>> {
+        public FirstEntry() { super("FirstEntry", NavigableMap::firstEntry); }
+    }
+
+    public static class LastEntry extends UnkeyedOperation<Map.Entry<String, Integer>> {
+        public LastEntry() { super("LastEntry", NavigableMap::lastEntry); }
     }
 
     public static class Put implements Operation {
@@ -89,11 +109,13 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(3)) {
-                case 0: return new Get(new StringGenerator().generate(sourceOfRandomness, generationStatus));
-                case 1: return new Put(new StringGenerator().generate(sourceOfRandomness, generationStatus),
+            switch (sourceOfRandomness.nextInt(5)) {
+                case 0: return new Put(new StringGenerator().generate(sourceOfRandomness, generationStatus),
                                        sourceOfRandomness.nextInt());
+                case 1: return new Get(new StringGenerator().generate(sourceOfRandomness, generationStatus));
                 case 2: return new Size();
+                case 3: return new FirstEntry();
+                case 4: return new LastEntry();
                 default: throw new IllegalStateException();
             }
         }

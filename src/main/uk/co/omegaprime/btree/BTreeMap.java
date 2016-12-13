@@ -618,7 +618,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public K floorKey(K key) {
-        throw new UnsupportedOperationException(); // FIXME
+        return getEntryKey(floorEntry(key));
     }
 
     @Override
@@ -628,7 +628,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public K ceilingKey(K key) {
-        throw new UnsupportedOperationException(); // FIXME
+        return getEntryKey(ceilingEntry(key));
     }
 
     @Override
@@ -638,17 +638,63 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public K higherKey(K key) {
-        throw new UnsupportedOperationException(); // FIXME
+        return getEntryKey(higherEntry(key));
     }
 
     @Override
     public Entry<K, V> firstEntry() {
-        throw new UnsupportedOperationException(); // FIXME
+        if (rootObjects == null) {
+            return null;
+        }
+
+        Object[] repr = rootObjects;
+        int size = rootSizeBox[0];
+        int depth = this.depth;
+
+        while (depth > 0) {
+            final int index = 0;
+            size = Internal.getSizes(repr)[index];
+            repr = Internal.getNode(repr, index);
+            depth--;
+        }
+
+        if (size == 0) {
+            return null;
+        } else {
+            final int index = 0;
+            return new AbstractMap.SimpleImmutableEntry<>(
+                (K)Leaf.getKey  (repr, index),
+                (V)Leaf.getValue(repr, index)
+            );
+        }
     }
 
     @Override
     public Entry<K, V> lastEntry() {
-        throw new UnsupportedOperationException(); // FIXME
+        if (rootObjects == null) {
+            return null;
+        }
+
+        Object[] repr = rootObjects;
+        int size = rootSizeBox[0];
+        int depth = this.depth;
+
+        while (depth > 0) {
+            final int index = size - 1;
+            size = Internal.getSizes(repr)[index];
+            repr = Internal.getNode(repr, index);
+            depth--;
+        }
+
+        if (size == 0) {
+            return null;
+        } else {
+            final int index = size - 1;
+            return new AbstractMap.SimpleImmutableEntry<>(
+                    (K)Leaf.getKey  (repr, index),
+                    (V)Leaf.getValue(repr, index)
+            );
+        }
     }
 
     @Override
@@ -708,12 +754,18 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public K firstKey() {
-        throw new UnsupportedOperationException(); // FIXME
+        final Entry<K, V> e = firstEntry();
+        if (e == null) throw new NoSuchElementException();
+
+        return e.getKey();
     }
 
     @Override
     public K lastKey() {
-        throw new UnsupportedOperationException(); // FIXME
+        final Entry<K, V> e = lastEntry();
+        if (e == null) throw new NoSuchElementException();
+
+        return e.getKey();
     }
 
     @Override
@@ -723,7 +775,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Collection<V> values() {
-        throw new UnsupportedOperationException(); // FIXME
+        return new MapValueCollection<V>(this);
     }
 
     @Override

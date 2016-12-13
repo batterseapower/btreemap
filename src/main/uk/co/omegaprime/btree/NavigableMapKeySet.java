@@ -92,7 +92,6 @@ class NavigableMapKeySet<K> implements NavigableSet<K> {
     public <T> T[] toArray(T[] a) {
         final int size = size();
         if (a.length < size) {
-            // Make a new array of a's runtime type, but my contents:
             a = Arrays.copyOf(a, size);
         }
 
