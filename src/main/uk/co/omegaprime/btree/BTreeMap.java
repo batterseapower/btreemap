@@ -2,6 +2,10 @@ package uk.co.omegaprime.btree;
 
 import java.util.*;
 
+import static uk.co.omegaprime.btree.Node.BINARY_SEARCH;
+import static uk.co.omegaprime.btree.Node.MAX_FANOUT;
+import static uk.co.omegaprime.btree.Node.MIN_FANOUT;
+
 public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     public static <K extends Comparable<? super K>, V> BTreeMap<K, V> create() {
         return new BTreeMap<K, V>(null);
@@ -24,70 +28,28 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         return result;
     }
 
-    // We're going to do a generalized (2, 3) tree i.e. each internal node will have between m and (2m - 1) children inclusive, for m >= 2
-    //
-    // What's a sensible value for m? It would be good if each array we allocate fits within one cache line. On Skylake,
-    // cache lines are 64 bytes, and with compressed OOPS (default for heap sizes < 32GB) object pointers are only 4 bytes long,
-    // implying that MAX_FANOUT = 16 would be a good choice, i.e. MIN_FANOUT = 8.
-    //
-    // With MIN_FANOUT=2:
-    //   Benchmark               Mode  Cnt        Score        Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  1900386.806 ± 115791.569  ops/s
-    //   BTreeMapBenchmark.put  thrpt   40  1617089.096 ±  32891.292  ops/s
-    //
-    // With MIN_FANOUT=8:
-    //   Benchmark               Mode  Cnt        Score        Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  4021130.733 ±  31473.315  ops/s
-    //   BTreeMapBenchmark.put  thrpt   40  2821784.716 ± 141837.270  ops/s
-    //
-    // java.util.TreeMap:
-    //   Benchmark               Mode  Cnt        Score        Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  3226633.131 ± 195725.464  ops/s
-    //   BTreeMapBenchmark.put  thrpt   40  2561772.533 ±  31611.667  ops/s
-    private static final int MIN_FANOUT = 8;
-    private static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
-
-    // Linear search seems about ~20% faster than binary (for MIN_FANOUT = 8 at least)
-    private static final boolean BINARY_SEARCH = false;
-
-    // Each internal node will be represented by:
-    //  1. An Object[] keysNodes of size MAX_FANOUT * 2
+    // Internal nodes and leaf nodes are both represented by an instance of the Node class. A Node is essentially
+    // an Object[MAX_FANOUT * 2] with a size. For an internal node:
     //   - The first MAX_FANOUT - 1 elements of this will refer to keys
     //   - The next MAX_FANOUT elements will hold references to the Object[] of child nodes
     //   - The final element will hold a reference to a int[] of child node sizes
-    //  2. A primitive int allocated at some position in an int[] (or, for the root node, in the BTreeMap itself).
-    //     This represents the number of child nodes that are present.
     //
-    // Each leaf node will be represented by:
-    //  1. An Object[] keysValues of size MAX_FANOUT * 2
+    // For a leaf node:
     //   - The first MAX_FANOUT elements will refer to keys
     //   - The next MAX_FANOUT elements will refer to values
-    //  2. A primitive int allocated in an int[] (or, for the root node, in the BTreeMap itself).
-    //     This represents the number of keys that are defined
     //
-    // Going from a boxed representation where I had a "Leaf" class and an "Internal" class that
-    // held the relevant data, to a representation where I unbox everything these arrays gave a small speedup.
+    // Instead of Node, I used to just use a Object[] instead, with the size of all sibling nodes stored contiguously in another int[].
+    // This was sort of fine but incurred more indirections & was fiddly to program against. Replacing it with this scheme
+    // (such that the size and Objects are stored contiguously) sped up my get benchmark from 4.8M ops/sec to 5.3M ops/sec.
     //
-    // Before:
-    //   Benchmark               Mode  Cnt        Score        Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  4021130.733 ±  31473.315  ops/s
-    //   BTreeMapBenchmark.put  thrpt   40  2821784.716 ± 141837.270  ops/s
-    //
-    // After:
-    //   Benchmark               Mode  Cnt        Score       Error  Units
-    //   BTreeMapBenchmark.get  thrpt   40  4098087.237 ±  31602.117  ops/s
-    //   BTreeMapBenchmark.put  thrpt   40  3015353.400 ± 80293.635  ops/s
-
+    // FIXME: the single element at the end of each internal node is unused. What to do about this? Use for parent link?
     private static class BubbledInsertion {
-        private final Object[] leftObjects, rightObjects;
-        private final int leftSize, rightSize;
+        private final Node leftObjects, rightObjects;
         private final Object separator; // The seperator key is <= all keys in the right and > all keys in the left
 
-        private BubbledInsertion(Object[] leftObjects, Object[] rightObjects, int leftSize, int rightSize, Object separator) {
+        private BubbledInsertion(Node leftObjects, Node rightObjects, Object separator) {
             this.leftObjects = leftObjects;
             this.rightObjects = rightObjects;
-            this.leftSize = leftSize;
-            this.rightSize = rightSize;
             this.separator = separator;
         }
     }
@@ -95,12 +57,13 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     private static class Leaf {
         private Leaf() {}
 
-        public static int find(Object[] keysValues, int size, Object key, Comparator comparator) {
+        public static int find(Node keysValues, Object key, Comparator comparator) {
+            final int size = keysValues.size;
             if (BINARY_SEARCH) {
-                return Arrays.binarySearch(keysValues, 0, size, key, comparator);
+                return keysValues.binarySearch(0, size, key, comparator);
             } else {
                 for (int i = 0; i < size; i++) {
-                    final Object checkKey = keysValues[i];
+                    final Object checkKey = keysValues.get(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
                     if (cmp == 0) {
                         return i;
@@ -113,17 +76,17 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             }
         }
 
-        public static Object getKey(Object[] keysValues, int index) {
-            return keysValues[index];
+        public static Object getKey(Node keysValues, int index) {
+            return keysValues.get(index);
         }
 
-        public static Object getValue(Object[] keysValues, int index) {
-            return keysValues[MAX_FANOUT + index];
+        public static Object getValue(Node keysValues, int index) {
+            return keysValues.get(MAX_FANOUT + index);
         }
 
-        public static Object putOrDieIfFull(Object[] keysValues, int[] sizeBox, int sizeIndex, Object key, Object value, Comparator comparator) {
-            int index = find(keysValues, sizeBox[sizeIndex], key, comparator);
-            return putAtIndex(keysValues, sizeBox, sizeIndex, index, key, value);
+        public static Object putOrDieIfFull(Node keysValues, Object key, Object value, Comparator comparator) {
+            int index = find(keysValues, key, comparator);
+            return putAtIndex(keysValues, index, key, value);
         }
 
         public static boolean canPutAtIndex(int size, int index) {
@@ -131,52 +94,53 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         }
 
         /** @param index must be the index of key in the leaf, using same convention as Arrays.binarySearch */
-        public static Object putAtIndex(Object[] keysValues, int[] sizeBox, int sizeIndex, int index, Object key, Object value) {
-            assert canPutAtIndex(sizeBox[sizeIndex], index);
+        public static Object putAtIndex(Node keysValues, int index, Object key, Object value) {
+            assert canPutAtIndex(keysValues.size, index);
 
             final Object result;
             if (index < 0) {
-                final int size = sizeBox[sizeIndex];
+                final int size = keysValues.size;
                 assert size < MAX_FANOUT;
 
                 final int insertionPoint = -(index + 1);
-                System.arraycopy(keysValues,              insertionPoint, keysValues,              insertionPoint + 1, size - insertionPoint);
-                System.arraycopy(keysValues, MAX_FANOUT + insertionPoint, keysValues, MAX_FANOUT + insertionPoint + 1, size - insertionPoint);
-                sizeBox[sizeIndex] = size + 1;
+                Node.arraycopy(keysValues,              insertionPoint, keysValues,              insertionPoint + 1, size - insertionPoint);
+                Node.arraycopy(keysValues, MAX_FANOUT + insertionPoint, keysValues, MAX_FANOUT + insertionPoint + 1, size - insertionPoint);
+                keysValues.size = size + 1;
 
-                keysValues[insertionPoint] = key;
+                keysValues.set(insertionPoint, key);
 
                 result = null;
                 index = insertionPoint;
             } else {
-                result = keysValues[MAX_FANOUT + index];
+                result = keysValues.get(MAX_FANOUT + index);
             }
 
-            keysValues[MAX_FANOUT + index] = value;
+            keysValues.set(MAX_FANOUT + index, value);
             return result;
         }
 
-        private static void copy(Object[] srcKeysValues, int srcIndex, Object[] dstKeysValues, int dstIndex, int size) {
-            System.arraycopy(srcKeysValues, srcIndex,              dstKeysValues, dstIndex,              size);
-            System.arraycopy(srcKeysValues, srcIndex + MAX_FANOUT, dstKeysValues, dstIndex + MAX_FANOUT, size);
+        private static void copy(Node srcKeysValues, int srcIndex, Node dstKeysValues, int dstIndex, int size) {
+            Node.arraycopy(srcKeysValues, srcIndex,              dstKeysValues, dstIndex,              size);
+            Node.arraycopy(srcKeysValues, srcIndex + MAX_FANOUT, dstKeysValues, dstIndex + MAX_FANOUT, size);
         }
 
         // This splits the leaf (of size MAX_FANOUT == 2 * MIN_FANOUT - 1) plus one extra item into two new
         // leaves, each of size MIN_FANOUT.
-        public static BubbledInsertion bubblePutAtIndex(Object[] keysValues, int size, int index, Object key, Object value) {
-            assert !canPutAtIndex(size, index);
-            assert size == MAX_FANOUT; // i.e. implies index < 0
+        public static BubbledInsertion bubblePutAtIndex(Node keysValues, int index, Object key, Object value) {
+            assert !canPutAtIndex(keysValues.size, index);
+            assert keysValues.size == MAX_FANOUT; // i.e. implies index < 0
 
             int insertionPoint = -(index + 1);
-            final Object[] l = new Object[2 * MAX_FANOUT], r = new Object[2 * MAX_FANOUT];
+            final Node l = new Node(), r = new Node();
+            l.size = r.size = MIN_FANOUT;
 
             if (insertionPoint < MIN_FANOUT) {
                 copy(keysValues, 0,                           l, 0,                  insertionPoint);
                 copy(keysValues, insertionPoint,              l, insertionPoint + 1, MIN_FANOUT - insertionPoint - 1);
                 copy(keysValues, MIN_FANOUT - 1,              r, 0,                  MIN_FANOUT);
 
-                l[insertionPoint]              = key;
-                l[insertionPoint + MAX_FANOUT] = value;
+                l.set(insertionPoint,              key);
+                l.set(insertionPoint + MAX_FANOUT, value);
             } else {
                 insertionPoint -= MIN_FANOUT;
 
@@ -184,11 +148,11 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 copy(keysValues, MIN_FANOUT,                  r, 0,                  insertionPoint);
                 copy(keysValues, MIN_FANOUT + insertionPoint, r, insertionPoint + 1, MIN_FANOUT - insertionPoint - 1);
 
-                r[insertionPoint]              = key;
-                r[insertionPoint + MAX_FANOUT] = value;
+                r.set(insertionPoint,              key);
+                r.set(insertionPoint + MAX_FANOUT, value);
             }
 
-            return new BubbledInsertion(l, r, MIN_FANOUT, MIN_FANOUT, r[0]);
+            return new BubbledInsertion(l, r, r.get(0));
         }
     }
 
@@ -199,31 +163,28 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return index;
         }
 
-        private static Object getKey(Object[] repr, int index) {
-            return repr[getKeyIndex(index)];
+        private static Object getKey(Node repr, int index) {
+            return repr.get(getKeyIndex(index));
         }
 
         private static int getNodeIndex(int index) {
             return MAX_FANOUT - 1 + index;
         }
 
-        private static Object[] getNode(Object[] repr, int index) {
-            return (Object[])repr[getNodeIndex(index)];
-        }
-
-        private static int[] getSizes(Object[] repr) {
-            return (int[])repr[getNodeIndex(MAX_FANOUT)];
+        private static Node getNode(Node repr, int index) {
+            return (Node)repr.get(getNodeIndex(index));
         }
 
         /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
-        public static int find(Object[] repr, int size, Object key, Comparator comparator) {
+        public static int find(Node repr, Object key, Comparator comparator) {
+            final int size = repr.size;
             if (BINARY_SEARCH) {
-                final int index = Arrays.binarySearch(repr, 0, size - 1, key, comparator);
+                final int index = repr.binarySearch(0, size - 1, key, comparator);
                 return index < 0 ? -(index + 1) : index + 1;
             } else {
                 // Tried doing the comparator == null check outside the loop, but not a significant speed boost
                 for (int i = 0; i < size - 1; i++) {
-                    final Object checkKey = repr[i];
+                    final Object checkKey = repr.get(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
                     if (cmp > 0) {
                         return i;
@@ -238,8 +199,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return size < MAX_FANOUT;
         }
 
-        public static void putAtIndex(Object[] repr, int[] sizeBox, int sizeIndex, int nodeIndex, BubbledInsertion toBubble) {
-            assert canPutAtIndex(sizeBox[sizeIndex]);
+        public static void putAtIndex(Node repr, int nodeIndex, BubbledInsertion toBubble) {
+            assert canPutAtIndex(repr.size);
 
             // Tree:         Bubbled input:
             //  Key   0 1     Key    S
@@ -248,24 +209,18 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             //  Key   0  S  1
             //  Node 0 1A 1B 2
 
-            final int size = sizeBox[sizeIndex];
-            final int[] sizes = getSizes(repr);
-            System.arraycopy(repr,  getKeyIndex (nodeIndex),     repr,  getKeyIndex (nodeIndex + 1), size - nodeIndex - 1);
-            System.arraycopy(repr,  getNodeIndex(nodeIndex + 1), repr,  getNodeIndex(nodeIndex + 2), size - nodeIndex - 1);
-            System.arraycopy(sizes,              nodeIndex + 1,  sizes,              nodeIndex + 2,  size - nodeIndex - 1);
-            repr [getKeyIndex (nodeIndex)    ] = toBubble.separator;
-            repr [getNodeIndex(nodeIndex)    ] = toBubble.leftObjects;
-            sizes[             nodeIndex     ] = toBubble.leftSize;
-            repr [getNodeIndex(nodeIndex + 1)] = toBubble.rightObjects;
-            sizes[             nodeIndex + 1 ] = toBubble.rightSize;
+            final int size = repr.size;
+            Node.arraycopy(repr,  getKeyIndex (nodeIndex),     repr,  getKeyIndex (nodeIndex + 1), size - nodeIndex - 1);
+            Node.arraycopy(repr,  getNodeIndex(nodeIndex + 1), repr,  getNodeIndex(nodeIndex + 2), size - nodeIndex - 1);
+            repr.set(getKeyIndex (nodeIndex)    , toBubble.separator);
+            repr.set(getNodeIndex(nodeIndex)    , toBubble.leftObjects);
+            repr.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
 
-            sizeBox[sizeIndex] = size + 1;
+            repr.size = size + 1;
         }
 
-        public static BubbledInsertion bubblePutAtIndex(Object[] repr, int size, int nodeIndex, BubbledInsertion toBubble) {
-            assert !canPutAtIndex(size); // i.e. size == MAX_FANOUT
-
-            final int[] sizes = getSizes(repr);
+        public static BubbledInsertion bubblePutAtIndex(Node repr, int nodeIndex, BubbledInsertion toBubble) {
+            assert !canPutAtIndex(repr.size); // i.e. size == MAX_FANOUT
 
             // Tree:         Bubbled input:
             //  Key   0 1     Key    S
@@ -278,80 +233,62 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             //  Key   0        Key    1
             //  Node 0 1A      Node 1B 2
 
-            final Object[] l = new Object[2 * MAX_FANOUT], r = new Object[2 * MAX_FANOUT];
-            final int[] lSizes = new int[MAX_FANOUT];
-            final int[] rSizes = new int[MAX_FANOUT];
-            l[MAX_FANOUT * 2 - 1] = lSizes;
-            r[MAX_FANOUT * 2 - 1] = rSizes;
+            final Node l = new Node(), r = new Node();
+            l.size = r.size = MIN_FANOUT;
 
             final Object separator;
             if (nodeIndex == MIN_FANOUT - 1) {
                 separator = toBubble.separator;
 
-                System.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0), MIN_FANOUT - 1);
-                System.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0), MIN_FANOUT - 1);
+                Node.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0), MIN_FANOUT - 1);
+                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0), MIN_FANOUT - 1);
 
-                System.arraycopy(repr,  getNodeIndex(0),          l,      getNodeIndex(0), MIN_FANOUT - 1);
-                System.arraycopy(sizes,              0,           lSizes,              0,  MIN_FANOUT - 1);
-                System.arraycopy(repr,  getNodeIndex(MIN_FANOUT), r,      getNodeIndex(1), MIN_FANOUT - 1);
-                System.arraycopy(sizes,              MIN_FANOUT,  rSizes,              1,  MIN_FANOUT - 1);
+                Node.arraycopy(repr,  getNodeIndex(0),          l,      getNodeIndex(0), MIN_FANOUT - 1);
+                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT), r,      getNodeIndex(1), MIN_FANOUT - 1);
 
-                l     [getNodeIndex(MIN_FANOUT - 1)] = toBubble.leftObjects;
-                lSizes[             MIN_FANOUT - 1]  = toBubble.leftSize;
-                r     [getNodeIndex(0)]              = toBubble.rightObjects;
-                rSizes[             0]               = toBubble.rightSize;
+                l.set(getNodeIndex(MIN_FANOUT - 1), toBubble.leftObjects);
+                r.set(getNodeIndex(0),              toBubble.rightObjects);
             } else if (nodeIndex < MIN_FANOUT) {
                 separator = getKey(repr, MIN_FANOUT - 2);
 
-                System.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0),             nodeIndex);
-                System.arraycopy(repr, getKeyIndex(nodeIndex),      l, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
-                System.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0),             MIN_FANOUT - 1);
+                Node.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0),             nodeIndex);
+                Node.arraycopy(repr, getKeyIndex(nodeIndex),      l, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0),             MIN_FANOUT - 1);
 
-                System.arraycopy(repr,  getNodeIndex(0),              l,      getNodeIndex(0),             nodeIndex);
-                System.arraycopy(sizes,              0,               lSizes,              0,              nodeIndex);
-                System.arraycopy(repr,  getNodeIndex(nodeIndex + 1),  l,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
-                System.arraycopy(sizes,              nodeIndex + 1,   lSizes,              nodeIndex + 2,  MIN_FANOUT - nodeIndex - 2);
-                System.arraycopy(repr,  getNodeIndex(MIN_FANOUT - 1), r,      getNodeIndex(0),             MIN_FANOUT);
-                System.arraycopy(sizes,              MIN_FANOUT - 1,  rSizes,              0,              MIN_FANOUT);
+                Node.arraycopy(repr,  getNodeIndex(0),              l,      getNodeIndex(0),             nodeIndex);
+                Node.arraycopy(repr,  getNodeIndex(nodeIndex + 1),  l,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT - 1), r,      getNodeIndex(0),             MIN_FANOUT);
 
-                l[getKeyIndex(nodeIndex)] = toBubble.separator;
-                l     [getNodeIndex(nodeIndex)]     = toBubble.leftObjects;
-                lSizes[             nodeIndex]      = toBubble.leftSize;
-                l     [getNodeIndex(nodeIndex + 1)] = toBubble.rightObjects;
-                lSizes[             nodeIndex + 1]  = toBubble.rightSize;
+                l.set(getKeyIndex(nodeIndex), toBubble.separator);
+                l.set(getNodeIndex(nodeIndex),     toBubble.leftObjects);
+                l.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
             } else {
                 nodeIndex -= MIN_FANOUT;
                 // i.e. 0 <= nodeIndex < MIN_FANOUT - 1
 
                 separator = getKey(repr, MIN_FANOUT - 1);
 
-                System.arraycopy(repr, getKeyIndex(0),                      l, getKeyIndex(0),             MIN_FANOUT - 1);
-                System.arraycopy(repr, getKeyIndex(MIN_FANOUT),             r, getKeyIndex(0),             nodeIndex);
-                System.arraycopy(repr, getKeyIndex(MIN_FANOUT + nodeIndex), r, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopy(repr, getKeyIndex(0),                      l, getKeyIndex(0),             MIN_FANOUT - 1);
+                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT),             r, getKeyIndex(0),             nodeIndex);
+                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT + nodeIndex), r, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
 
-                System.arraycopy(repr,  getNodeIndex(0),                          l,      getNodeIndex(0),             MIN_FANOUT);
-                System.arraycopy(sizes,              0,                           lSizes,              0,              MIN_FANOUT);
-                System.arraycopy(repr,  getNodeIndex(MIN_FANOUT),                 r,      getNodeIndex(0),             nodeIndex);
-                System.arraycopy(sizes,              MIN_FANOUT,                  rSizes,              0,              nodeIndex);
-                System.arraycopy(repr,  getNodeIndex(MIN_FANOUT + nodeIndex + 1), r,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
-                System.arraycopy(sizes,              MIN_FANOUT + nodeIndex + 1,  rSizes,              nodeIndex + 2,  MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopy(repr,  getNodeIndex(0),                          l,      getNodeIndex(0),             MIN_FANOUT);
+                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT),                 r,      getNodeIndex(0),             nodeIndex);
+                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT + nodeIndex + 1), r,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
 
-                r[getKeyIndex(nodeIndex)] = toBubble.separator;
-                r     [getNodeIndex(nodeIndex)]     = toBubble.leftObjects;
-                rSizes[             nodeIndex]      = toBubble.leftSize;
-                r     [getNodeIndex(nodeIndex + 1)] = toBubble.rightObjects;
-                rSizes[             nodeIndex + 1]  = toBubble.rightSize;
+                r.set(getKeyIndex(nodeIndex), toBubble.separator);
+                r.set(getNodeIndex(nodeIndex),     toBubble.leftObjects);
+                r.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
             }
 
-            return new BubbledInsertion(l, r, MIN_FANOUT, MIN_FANOUT, separator);
+            return new BubbledInsertion(l, r, separator);
         }
     }
 
     private final Comparator<? super K> comparator;
 
     // Allocate these lazily to optimize allocation of lots of empty BTreeMaps
-    private Object[] rootObjects;
-    private int[] rootSizeBox;
+    private Node rootObjects;
 
     private int depth; // Number of levels of internal nodes in the tree
     private int size;
@@ -361,15 +298,13 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     }
 
     public void check() {
-        if (rootObjects == null) {
-            assert rootSizeBox == null;
-        } else {
-            checkCore(rootObjects, rootSizeBox, 0, depth);
+        if (rootObjects != null) {
+            checkCore(rootObjects, depth);
         }
     }
 
-    private void checkCore(Object[] repr, int[] sizeBox, int sizeIndex, int depth) {
-        final int size = sizeBox[sizeIndex];
+    private void checkCore(Node repr, int depth) {
+        final int size = repr.size;
         if (depth == 0) {
             for (int i = 0; i < size; i++) {
                 assert Leaf.getKey(repr, i) != null;
@@ -379,9 +314,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 assert Internal.getKey(repr, i) != null;
             }
 
-            final int[] sizes = Internal.getSizes(repr);
             for (int i = 0; i < size; i++) {
-                checkCore(Internal.getNode(repr, i), sizes, i, depth - 1);
+                checkCore(Internal.getNode(repr, i), depth - 1);
             }
         }
     }
@@ -389,7 +323,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     @Override
     public void clear() {
         rootObjects = null;
-        rootSizeBox = null;
         depth = 0;
         size = 0;
     }
@@ -421,16 +354,14 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return dflt;
         }
 
-        Object[] nextObjects = rootObjects;
-        int nextSize = rootSizeBox[0];
+        Node nextObjects = rootObjects;
         int depth = this.depth;
         while (depth-- > 0) {
-            final int ix = Internal.find(nextObjects, nextSize, key, comparator);
-            nextSize    = Internal.getSizes(nextObjects)[ix];
+            final int ix = Internal.find(nextObjects, key, comparator);
             nextObjects = Internal.getNode(nextObjects, ix);
         }
 
-        final int ix = Leaf.find(nextObjects, nextSize, key, comparator);
+        final int ix = Leaf.find(nextObjects, key, comparator);
         if (ix < 0) {
             return dflt;
         } else {
@@ -444,25 +375,22 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return false;
         }
 
-        Object[] nextObjects = rootObjects;
-        int nextSize = rootSizeBox[0];
+        Node nextObjects = rootObjects;
         int depth = this.depth;
         while (depth-- > 0) {
-            final int ix = Internal.find(nextObjects, nextSize, key, comparator);
-            nextSize    = Internal.getSizes(nextObjects)[ix];
+            final int ix = Internal.find(nextObjects, key, comparator);
             nextObjects = Internal.getNode(nextObjects, ix);
         }
 
-        final int ix = Leaf.find(nextObjects, nextSize, key, comparator);
+        final int ix = Leaf.find(nextObjects, key, comparator);
         return ix >= 0;
     }
 
     @Override
     public V put(K key, V value) {
         if (rootObjects == null) {
-            rootObjects = new Object[2 * MAX_FANOUT];
-            rootSizeBox = new int[1];
-            final Object result = Leaf.putOrDieIfFull(rootObjects, rootSizeBox, 0, key, value, comparator);
+            rootObjects = new Node();
+            final Object result = Leaf.putOrDieIfFull(rootObjects, key, value, comparator);
             assert result == null;
 
             this.size = 1;
@@ -470,52 +398,47 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         }
 
         final Object[] resultBox = new Object[1];
-        final BubbledInsertion toBubble = putInternal(key, value, rootObjects, rootSizeBox, 0, this.depth, resultBox);
+        final BubbledInsertion toBubble = putInternal(key, value, rootObjects, this.depth, resultBox);
         if (toBubble == null) {
             return (V)resultBox[0];
         }
 
-        final int[] sizes = new int[MAX_FANOUT];
-
-        this.rootObjects = new Object[2 * MAX_FANOUT];
-        this.rootSizeBox[0] = 2;
-        this.rootObjects[MAX_FANOUT * 2 - 1] = sizes;
-        this.rootObjects[Internal.getKeyIndex(0)] = toBubble.separator;
-        this.rootObjects[Internal.getNodeIndex(0)] = toBubble.leftObjects;
-        sizes           [                      0]  = toBubble.leftSize;
-        this.rootObjects[Internal.getNodeIndex(1)] = toBubble.rightObjects;
-        sizes           [                      1]  = toBubble.rightSize;
+        this.rootObjects = new Node();
+        this.rootObjects.size = 2;
+        this.rootObjects.set(Internal.getKeyIndex (0), toBubble.separator);
+        this.rootObjects.set(Internal.getNodeIndex(0), toBubble.leftObjects);
+        this.rootObjects.set(Internal.getNodeIndex(1), toBubble.rightObjects);
 
         this.depth++;
         return null;
     }
 
-    private BubbledInsertion putInternal(K key, V value, Object[] nextObjects, int[] nextSizeBox, int nextSizeIx, int depth, Object[] resultBox) {
-        final int size = nextSizeBox[nextSizeIx];
+    private BubbledInsertion putInternal(K key, V value, Node nextObjects, int depth, Object[] resultBox) {
+        final int size = nextObjects.size;
         if (depth == 0) {
-            final int nodeIndex = Leaf.find(nextObjects, size, key, comparator);
+            final int nodeIndex = Leaf.find(nextObjects, key, comparator);
             if (nodeIndex < 0) this.size++;
 
             if (Leaf.canPutAtIndex(size, nodeIndex)) {
-                resultBox[0] = Leaf.putAtIndex(nextObjects, nextSizeBox, nextSizeIx, nodeIndex, key, value);
+                resultBox[0] = Leaf.putAtIndex(nextObjects, nodeIndex, key, value);
                 return null;
             }
 
-            return Leaf.bubblePutAtIndex(nextObjects, size, nodeIndex, key, value);
+            return Leaf.bubblePutAtIndex(nextObjects, nodeIndex, key, value);
         } else {
-            final int nodeIndex = Internal.find(nextObjects, size, key, comparator);
+            final int nodeIndex = Internal.find(nextObjects, key, comparator);
 
-            final BubbledInsertion toBubble = putInternal(key, value, Internal.getNode(nextObjects, nodeIndex), Internal.getSizes(nextObjects), nodeIndex, depth - 1, resultBox);
+            final BubbledInsertion toBubble = putInternal(key, value, Internal.getNode(nextObjects, nodeIndex), depth - 1, resultBox);
             if (toBubble == null) {
                 return null;
             }
 
             if (Internal.canPutAtIndex(size)) {
-                Internal.putAtIndex(nextObjects, nextSizeBox, nextSizeIx, nodeIndex, toBubble);
+                Internal.putAtIndex(nextObjects, nodeIndex, toBubble);
                 return null;
             }
 
-            return Internal.bubblePutAtIndex(nextObjects, size, nodeIndex, toBubble);
+            return Internal.bubblePutAtIndex(nextObjects, nodeIndex, toBubble);
         }
     }
 
@@ -537,29 +460,26 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     @Override
     public String toString() {
         // FIXME: replace with non-debugging printer
-        return rootObjects == null ? "{}" : toStringInternal(rootObjects, rootSizeBox[0], depth);
+        return rootObjects == null ? "{}" : toStringInternal(rootObjects, depth);
     }
 
-    private static String toStringInternal(Object[] repr, int size, int depth) {
+    private static String toStringInternal(Node repr, int depth) {
         if (depth == 0) {
             final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < size; i++) {
+            for (int i = 0; i < repr.size; i++) {
                 if (sb.length() != 0) sb.append(", ");
                 sb.append(Leaf.getKey(repr, i)).append(": ").append(Leaf.getValue(repr, i));
             }
 
             return sb.toString();
         } else {
-            final int[] sizes = Internal.getSizes(repr);
-
             final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < size; i++) {
+            for (int i = 0; i < repr.size; i++) {
                 if (sb.length() != 0) {
                     sb.append(" |").append(Internal.getKey(repr, i - 1)).append("| ");
                 }
-                final Object[] node = Internal.getNode(repr, i);
-                final int nodeSize = sizes[i];
-                sb.append("{").append(toStringInternal(node, nodeSize, depth - 1)).append("}");
+                final Node node = Internal.getNode(repr, i);
+                sb.append("{").append(toStringInternal(node, depth - 1)).append("}");
             }
 
             return sb.toString();
@@ -576,20 +496,18 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return null;
         }
 
-        Object[] repr = rootObjects;
-        int size = rootSizeBox[0];
+        Node repr = rootObjects;
         int depth = this.depth;
 
         while (depth-- > 0) {
             // FIXME: this is wrong. Consider searching for 3 in this tree where 2 is a valid key in the map:
             // Keys:   2 4
             // Nodes: A B C
-            final int index = Math.max(0, Internal.find(repr, size, key, comparator) - 1);
-            size = Internal.getSizes(repr)[index - 1];
+            final int index = Math.max(0, Internal.find(repr, key, comparator) - 1);
             repr = Internal.getNode(repr, index - 1);
         }
 
-        final int index = Leaf.find(repr, size, key, comparator);
+        final int index = Leaf.find(repr, key, comparator);
         final int gteKeyIndex = index >= 0 ? index : -(index + 1);
 
         if (gteKeyIndex > 0) {
@@ -644,17 +562,15 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return null;
         }
 
-        Object[] repr = rootObjects;
-        int size = rootSizeBox[0];
+        Node repr = rootObjects;
         int depth = this.depth;
 
-        while (depth > 0) {
+        while (depth-- > 0) {
             final int index = 0;
-            size = Internal.getSizes(repr)[index];
             repr = Internal.getNode(repr, index);
-            depth--;
         }
 
+        final int size = repr.size;
         if (size == 0) {
             return null;
         } else {
@@ -672,17 +588,15 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return null;
         }
 
-        Object[] repr = rootObjects;
-        int size = rootSizeBox[0];
+        Node repr = rootObjects;
         int depth = this.depth;
 
-        while (depth > 0) {
-            final int index = size - 1;
-            size = Internal.getSizes(repr)[index];
+        while (depth-- > 0) {
+            final int index = repr.size - 1;
             repr = Internal.getNode(repr, index);
-            depth--;
         }
 
+        final int size = repr.size;
         if (size == 0) {
             return null;
         } else {
