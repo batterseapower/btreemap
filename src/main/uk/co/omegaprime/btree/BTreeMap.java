@@ -93,7 +93,22 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         private Leaf() {}
 
         public static int find(Object[] keysValues, int size, Object key, Comparator comparator) {
-            return Arrays.binarySearch(keysValues, 0, size, key, comparator);
+            // Linear search ~10% faster than binary search for MAX_FANOUT = 8 at least
+            if (false) {
+                return Arrays.binarySearch(keysValues, 0, size, key, comparator);
+            } else {
+                for (int i = 0; i < size; i++) {
+                    final Object checkKey = keysValues[i];
+                    final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
+                    if (cmp == 0) {
+                        return i;
+                    } else if (cmp > 0) {
+                        return -i - 1;
+                    }
+                }
+
+                return -size - 1;
+            }
         }
 
         public static Object getKey(Object[] keysValues, int index) {
@@ -200,12 +215,21 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
         public static int find(Object[] repr, int size, Object key, Comparator comparator) {
-            final int index = Arrays.binarySearch(repr, getKeyIndex(0), getKeyIndex(size - 1), key, comparator);
-            if (index < 0) {
-                final int insertionPoint = -(index + 1);
-                return insertionPoint;
+            // Linear search seems about ~17% faster than binary (for MAX_FANOUT=8 at least)
+            if (false) {
+                final int index = Arrays.binarySearch(repr, 0, size - 1, key, comparator);
+                return index < 0 ? -(index + 1) : index + 1;
             } else {
-                return index + 1;
+                // Tried doing the comparator == null check outside the loop, but not a significant speed boost
+                for (int i = 0; i < size - 1; i++) {
+                    final Object checkKey = repr[i];
+                    final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
+                    if (cmp > 0) {
+                        return i;
+                    }
+                }
+
+                return size - 1;
             }
         }
 
@@ -392,17 +416,29 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public V getOrDefault(Object key, V dflt) {
-        final Object[] resultBox = new Object[1];
-        return getInternal(key, resultBox) ? (V)resultBox[0] : dflt;
+        if (rootObjects == null) {
+            return dflt;
+        }
 
+        Object[] nextObjects = rootObjects;
+        int nextSize = rootSizeBox[0];
+        int depth = this.depth;
+        while (depth-- > 0) {
+            final int ix = Internal.find(nextObjects, nextSize, key, comparator);
+            nextSize    = Internal.getSizes(nextObjects)[ix];
+            nextObjects = Internal.getNode(nextObjects, ix);
+        }
+
+        final int ix = Leaf.find(nextObjects, nextSize, key, comparator);
+        if (ix < 0) {
+            return dflt;
+        } else {
+            return (V)Leaf.getValue(nextObjects, ix);
+        }
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return getInternal(key, null);
-    }
-
-    private boolean getInternal(Object key, Object[] resultBox) {
         if (rootObjects == null) {
             return false;
         }
@@ -417,14 +453,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
         }
 
         final int ix = Leaf.find(nextObjects, nextSize, key, comparator);
-        if (ix < 0) {
-            return false;
-        } else {
-            if (resultBox != null) {
-                resultBox[0] = Leaf.getValue(nextObjects, ix);
-            }
-            return true;
-        }
+        return ix >= 0;
     }
 
     @Override

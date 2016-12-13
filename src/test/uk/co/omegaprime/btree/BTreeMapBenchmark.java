@@ -4,6 +4,7 @@ import org.openjdk.jmh.Main;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
 
@@ -15,7 +16,7 @@ public class BTreeMapBenchmark {
     @State(Scope.Thread)
     public static class MyState {
         public final Random random = new Random();
-        public final Map<Integer, Integer> warmedMap = BTreeMap.create();
+        public final NavigableMap<Integer, Integer> warmedMap = BTreeMap.create();
         public Integer key;
 
         private int nextKey() {
@@ -43,6 +44,11 @@ public class BTreeMapBenchmark {
     @Benchmark
     public void get(MyState state) {
         state.warmedMap.get(state.key);
+    }
+
+    @Benchmark
+    public void lowerKey(MyState state) {
+        state.warmedMap.lowerKey(state.key);
     }
 
     public static void main(String[] args) throws Exception {
