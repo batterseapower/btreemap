@@ -2,7 +2,7 @@ package uk.co.omegaprime.btree;
 
 import java.util.*;
 
-public class BTreeMap<K, V> implements NavigableMap<K, V> {
+public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     public static <K extends Comparable<? super K>, V> BTreeMap<K, V> create() {
         return new BTreeMap<K, V>(null);
     }
@@ -699,17 +699,29 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Entry<K, V> pollFirstEntry() {
-        throw new UnsupportedOperationException(); // FIXME
+        // TODO: fast path?
+        final Entry<K, V> e = firstEntry();
+        if (e != null) {
+            remove(e.getKey());
+        }
+
+        return e;
     }
 
     @Override
     public Entry<K, V> pollLastEntry() {
-        throw new UnsupportedOperationException(); // FIXME
+        // TODO: fast path?
+        final Entry<K, V> e = lastEntry();
+        if (e != null) {
+            remove(e.getKey());
+        }
+
+        return e;
     }
 
     @Override
     public NavigableMap<K, V> descendingMap() {
-        throw new UnsupportedOperationException(); // FIXME
+        return new DescendingNavigableMap<K, V>(this);
     }
 
     @Override
@@ -719,21 +731,21 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public NavigableSet<K> descendingKeySet() {
+        return descendingMap().navigableKeySet();
+    }
+
+    @Override
+    public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
         throw new UnsupportedOperationException(); // FIXME
     }
 
     @Override
-    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+    public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
         throw new UnsupportedOperationException(); // FIXME
     }
 
     @Override
-    public NavigableMap<K, V> headMap(K toKey, boolean inclusive) {
-        throw new UnsupportedOperationException(); // FIXME
-    }
-
-    @Override
-    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive) {
+    public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
         throw new UnsupportedOperationException(); // FIXME
     }
 
@@ -780,6 +792,11 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public Set<Entry<K, V>> descendingEntrySet() {
         throw new UnsupportedOperationException(); // FIXME
     }
 
