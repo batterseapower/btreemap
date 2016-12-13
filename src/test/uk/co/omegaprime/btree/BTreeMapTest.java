@@ -53,6 +53,18 @@ public class BTreeMapTest {
         public LowerEntry(String key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
     }
 
+    public static class FloorEntry extends KeyedOperation<Map.Entry<String, Integer>> {
+        public FloorEntry(String key) { super("FloorEntry", key, NavigableMap::floorEntry); }
+    }
+
+    public static class HigherEntry extends KeyedOperation<Map.Entry<String, Integer>> {
+        public HigherEntry(String key) { super("HigherEntry", key, NavigableMap::higherEntry); }
+    }
+
+    public static class CeilingEntry extends KeyedOperation<Map.Entry<String, Integer>> {
+        public CeilingEntry(String key) { super("CeilingEntry", key, NavigableMap::ceilingEntry); }
+    }
+
     public static class UnkeyedOperation<T> implements Operation {
         private final String name;
         private final Function<NavigableMap<String, Integer>, T> f;
@@ -120,13 +132,16 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(6)) {
+            switch (sourceOfRandomness.nextInt(9)) {
                 case 0: return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
                 case 1: return new Get(randomKey(sourceOfRandomness));
                 case 2: return new LowerEntry(randomKey(sourceOfRandomness));
-                case 3: return new Size();
-                case 4: return new FirstEntry();
-                case 5: return new LastEntry();
+                case 3: return new FloorEntry(randomKey(sourceOfRandomness));
+                case 4: return new HigherEntry(randomKey(sourceOfRandomness));
+                case 5: return new CeilingEntry(randomKey(sourceOfRandomness));
+                case 6: return new Size();
+                case 7: return new FirstEntry();
+                case 8: return new LastEntry();
                 default: throw new IllegalStateException();
             }
         }
@@ -143,7 +158,7 @@ public class BTreeMapTest {
     }
 
     @Property(trials = 1000)
-    public void randomOperationSequenceOnBigMap(/*@com.pholser.junit.quickcheck.generator.Size(min=4, max=100)*/ List<@From(OperationGenerator.class) Operation> ops) {
+    public void randomOperationSequenceOnBigMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
         final TreeMap<String, Integer> expected = new TreeMap<>();
         final BTreeMap<String, Integer> actual = BTreeMap.create();
 
