@@ -496,29 +496,53 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return null;
         }
 
+        final int depth = this.depth;
+
+        Node backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
+        int backtrackIndex = -1;     // Index of that prior child
+        int backtrackDepth = -1;     // Depth of that internal node
+
         Node repr = rootObjects;
-        int depth = this.depth;
-
-        while (depth-- > 0) {
-            // FIXME: this is wrong. Consider searching for 3 in this tree where 2 is a valid key in the map:
-            // Keys:   2 4
-            // Nodes: A B C
-            final int index = Math.max(0, Internal.find(repr, key, comparator) - 1);
-            repr = Internal.getNode(repr, index - 1);
+        for (int i = 0; i < depth; i++) {
+            final int index = Internal.find(repr, key, comparator);
+            if (index > 0) {
+                backtrackParent = repr;
+                backtrackIndex = index - 1;
+                backtrackDepth = i;
+            }
+            repr = Internal.getNode(repr, index);
         }
 
-        final int index = Leaf.find(repr, key, comparator);
-        final int gteKeyIndex = index >= 0 ? index : -(index + 1);
+        final int gteKeyIndex;
+        {
+            final int index = Leaf.find(repr, key, comparator);
+            gteKeyIndex = index >= 0 ? index : -(index + 1);
+        }
 
+        final int returnIndex;
         if (gteKeyIndex > 0) {
-            return new AbstractMap.SimpleImmutableEntry<>(
-                (K)Leaf.getKey  (repr, gteKeyIndex - 1),
-                (V)Leaf.getValue(repr, gteKeyIndex - 1)
-            );
+            returnIndex = gteKeyIndex - 1;
         } else {
-            // gteKeyIndex == 0
-            return null;
+            // gteKeyIndex == 0: we need to find the last item in the prior leaf node.
+            if (backtrackParent == null) {
+                // Oh -- that was the first leaf node
+                return null;
+            }
+
+            repr = backtrackParent;
+            int index = backtrackIndex;
+            for (int i = backtrackDepth; i < depth; i++) {
+                repr = Internal.getNode(repr, index);
+                index = repr.size - 1;
+            }
+
+            returnIndex = index;
         }
+
+        return new AbstractMap.SimpleImmutableEntry<>(
+            (K)Leaf.getKey  (repr, returnIndex),
+            (V)Leaf.getValue(repr, returnIndex)
+        );
     }
 
     @Override

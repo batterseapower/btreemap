@@ -102,6 +102,17 @@ public class BTreeMapTest {
         }
     }
 
+    private static String randomKey(SourceOfRandomness sor) {
+        // Use a small keyspace so that we'll randomly get some collisions. Tests more interesting that way!
+        final int length = sor.nextInt(1, 3);
+        final char[] cs = new char[length];
+        for (int i = 0; i < length; i++) {
+            cs[i] = (char)('a' + sor.nextInt('z' - 'a'));
+        }
+
+        return new String(cs);
+    }
+
     public static class OperationGenerator extends Generator<Operation> {
         public OperationGenerator() {
             super(Operation.class);
@@ -109,22 +120,40 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(5)) {
-                case 0: return new Put(new StringGenerator().generate(sourceOfRandomness, generationStatus),
-                                       sourceOfRandomness.nextInt());
-                case 1: return new Get(new StringGenerator().generate(sourceOfRandomness, generationStatus));
-                case 2: return new Size();
-                case 3: return new FirstEntry();
-                case 4: return new LastEntry();
+            switch (sourceOfRandomness.nextInt(6)) {
+                case 0: return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
+                case 1: return new Get(randomKey(sourceOfRandomness));
+                case 2: return new LowerEntry(randomKey(sourceOfRandomness));
+                case 3: return new Size();
+                case 4: return new FirstEntry();
+                case 5: return new LastEntry();
                 default: throw new IllegalStateException();
             }
         }
     }
 
     @Property
-    public void randomOperationSequence(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+    public void randomOperationSequenceOnEmptyMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
         final TreeMap<String, Integer> expected = new TreeMap<>();
         final BTreeMap<String, Integer> actual = BTreeMap.create();
+
+        for (Operation op : ops) {
+            op.apply(expected, actual);
+        }
+    }
+
+    @Property(trials = 1000)
+    public void randomOperationSequenceOnBigMap(/*@com.pholser.junit.quickcheck.generator.Size(min=4, max=100)*/ List<@From(OperationGenerator.class) Operation> ops) {
+        final TreeMap<String, Integer> expected = new TreeMap<>();
+        final BTreeMap<String, Integer> actual = BTreeMap.create();
+
+        // Try to make sure we have at least one internal node
+        final SourceOfRandomness sor = new SourceOfRandomness(new Random(1337));
+        for (int i = 0; i < 128; i++) {
+            final String key = randomKey(sor);
+            expected.put(key, i);
+            actual  .put(key, i);
+        }
 
         for (Operation op : ops) {
             op.apply(expected, actual);
@@ -137,6 +166,7 @@ public class BTreeMapTest {
         map.put(1, "One");
         map.put(3, "Three");
 
+        assertEquals(null, map.lowerEntry(0));
         assertEquals(null, map.lowerEntry(1));
         assertEquals(Integer.valueOf(1), map.lowerEntry(2).getKey());
         assertEquals("One",              map.lowerEntry(2).getValue());
