@@ -452,25 +452,27 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         return size == 0;
     }
 
-    @Override
     public boolean containsValue(Object value) {
         return values().stream().anyMatch(v -> Objects.equals(v, value));
     }
 
     @Override
     public String toString() {
-        // FIXME: replace with non-debugging printer
-        return rootObjects == null ? "{}" : toStringInternal(rootObjects, depth);
+        if (false) {
+            return rootObjects == null ? "{}" : toStringInternal(rootObjects, depth);
+        } else {
+            return Iterables.toMapString(this.entrySet());
+        }
     }
 
     @Override
     public boolean equals(Object that) {
-        throw new UnsupportedOperationException(); // FIXME
+        return SortedMaps.equals(this, that);
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.hashCode(entrySet());
     }
 
     private static String toStringInternal(Node repr, int depth) {

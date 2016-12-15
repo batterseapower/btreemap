@@ -13,17 +13,17 @@ class MapEntrySet<K, V> implements Set<Map.Entry<K, V>> {
 
     @Override
     public String toString() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.toString(this);
     }
 
     @Override
     public boolean equals(Object that) {
-        throw new UnsupportedOperationException(); // FIXME
+        return Sets.equals(this, that);
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.hashCode(this);
     }
 
     @Override

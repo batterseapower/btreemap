@@ -11,17 +11,17 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public String toString() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.toMapString(this.entrySet());
     }
 
     @Override
     public boolean equals(Object that) {
-        throw new UnsupportedOperationException(); // FIXME
+        return SortedMaps.equals(this, that);
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.hashCode(entrySet());
     }
 
     @Override

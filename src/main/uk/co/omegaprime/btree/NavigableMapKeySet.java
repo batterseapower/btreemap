@@ -11,17 +11,25 @@ class NavigableMapKeySet<K> implements NavigableSet<K> {
 
     @Override
     public String toString() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.toString(this);
     }
 
     @Override
     public boolean equals(Object that) {
-        throw new UnsupportedOperationException(); // FIXME
+        return that instanceof Set && equals((Set)that);
+    }
+
+    private boolean equals(Set that) {
+        if (that instanceof SortedSet && Objects.equals(comparator(), ((SortedSet)that).comparator())) {
+            return this.size() == that.size() && Iterables.equals(this, that);
+        } else {
+            return Sets.equals(this, that);
+        }
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.hashCode(this);
     }
 
     @Override

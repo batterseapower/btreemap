@@ -11,17 +11,44 @@ class MapValueCollection<V> implements Collection<V> {
 
     @Override
     public String toString() {
-        throw new UnsupportedOperationException(); // FIXME
+        return Iterables.toString(this);
     }
 
     @Override
     public boolean equals(Object that) {
-        throw new UnsupportedOperationException(); // FIXME
+        return that instanceof Collection && equals((Collection)that);
+    }
+
+    private boolean equals(Collection that) {
+        if (this.size() != that.size()) return false;
+
+        // Seems dumb but suggested by the Javadoc for Collection.equals
+        if (that instanceof Set || that instanceof List) return false;
+
+        final Iterator<V> thisIt = this.iterator();
+        final Iterator thatIt = that.iterator();
+
+        while (thisIt.hasNext() && thatIt.hasNext()) {
+            if (!Objects.equals(thisIt.next(), thatIt.next())) {
+                return false;
+            }
+        }
+
+        if (thisIt.hasNext() || thatIt.hasNext()) {
+            return false;
+        }
+
+        return true;
     }
 
     @Override
     public int hashCode() {
-        throw new UnsupportedOperationException(); // FIXME
+        int h = 0;
+        for (V v : this) {
+            h += Objects.hashCode(v);
+        }
+
+        return h;
     }
 
     @Override
