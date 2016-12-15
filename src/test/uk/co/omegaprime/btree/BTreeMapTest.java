@@ -87,6 +87,11 @@ public class BTreeMapTest {
         public Size() { super("Size", NavigableMap::size); }
     }
 
+    // Actually a test of our asccending iterator
+    public static class Values extends UnkeyedOperation<Collection<Integer>> {
+        public Values() { super("Values", m -> new ArrayList<>(m.values())); }
+    }
+
     // Actually a test of our descending iterator
     public static class DescendingValues extends UnkeyedOperation<Collection<Integer>> {
         public DescendingValues() { super("DescendingValues", m -> new ArrayList<>(m.descendingMap().values())); }
@@ -137,17 +142,18 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(10)) {
-                case 0: return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
-                case 1: return new Get(randomKey(sourceOfRandomness));
-                case 2: return new LowerEntry(randomKey(sourceOfRandomness));
-                case 3: return new FloorEntry(randomKey(sourceOfRandomness));
-                case 4: return new HigherEntry(randomKey(sourceOfRandomness));
-                case 5: return new CeilingEntry(randomKey(sourceOfRandomness));
-                case 6: return new Size();
-                case 7: return new FirstEntry();
-                case 8: return new LastEntry();
-                case 9: return new DescendingValues();
+            switch (sourceOfRandomness.nextInt(11)) {
+                case 0:  return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
+                case 1:  return new Get(randomKey(sourceOfRandomness));
+                case 2:  return new LowerEntry(randomKey(sourceOfRandomness));
+                case 3:  return new FloorEntry(randomKey(sourceOfRandomness));
+                case 4:  return new HigherEntry(randomKey(sourceOfRandomness));
+                case 5:  return new CeilingEntry(randomKey(sourceOfRandomness));
+                case 6:  return new Size();
+                case 7:  return new FirstEntry();
+                case 8:  return new LastEntry();
+                case 9:  return new Values();
+                case 10: return new DescendingValues();
                 default: throw new IllegalStateException();
             }
         }

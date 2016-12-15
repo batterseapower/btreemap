@@ -880,14 +880,87 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     @Override
     public Set<Entry<K, V>> entrySet() {
         return new MapEntrySet<>(this, () -> new Iterator<Entry<K, V>>() {
+            // indexes[0] is an index into rootObjects.
+            // indexes[i] is an index into nodes[i - 1] (for i >= 1)
+            private final int[] indexes = new int[depth + 1];
+            private final Node[] nodes = new Node[depth];
+            // If nextLevel >= 0:
+            //   1. indexes[nextLevel] < size - 1
+            //   2. There is no level l > nextLevel such that indexes[l] < size - 1
+            private int nextLevel = -1;
+            private boolean hasNext = false;
+
+            {
+                if (rootObjects != null) {
+                    Node node = rootObjects;
+                    for (int i = 0;; i++) {
+                        final int index = indexes[i] = 0;
+                        if (index < node.size - 1) {
+                            nextLevel = i;
+                        }
+
+                        if (i >= nodes.length) {
+                            break;
+                        }
+
+                        node = nodes[i] = Internal.getNode(node, index);
+                    }
+
+                    hasNext = node.size > 0;
+                }
+            }
+
             @Override
             public boolean hasNext() {
-                throw new UnsupportedOperationException(); // FIXME
+                return hasNext;
             }
 
             @Override
             public Entry<K, V> next() {
-                throw new UnsupportedOperationException(); // FIXME
+                if (!hasNext) {
+                    throw new NoSuchElementException();
+                }
+
+                final Entry<K, V> result;
+                {
+                    final Node leafNode = nodes.length == 0 ? rootObjects : nodes[nodes.length - 1];
+                    final int ix = indexes[indexes.length - 1];
+                    result = new AbstractMap.SimpleImmutableEntry<K, V>(
+                            (K)Leaf.getKey(leafNode, ix),
+                            (V)Leaf.getValue(leafNode, ix)
+                    );
+                }
+
+                if (nextLevel < 0) {
+                    hasNext = false;
+                } else {
+                    int index = ++indexes[nextLevel];
+                    Node node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
+                    assert index < node.size;
+                    if (nextLevel < nodes.length) {
+                        // We stepped forward to a later item in an internal node: update all children
+                        for (int i = nextLevel; i < nodes.length;) {
+                            node = nodes[i++] = Internal.getNode(node, index);
+                            index = indexes[i] = 0;
+                        }
+
+                        nextLevel = nodes.length;
+                    } else if (index == node.size - 1) {
+                        // We stepped forward to the last item in a leaf node: find parent we should step forward next
+                        assert nextLevel == nodes.length;
+                        nextLevel = -1;
+                        for (int i = nodes.length - 1; i >= 0; i--) {
+                            node = i == 0 ? rootObjects : nodes[i - 1];
+                            index = indexes[i];
+                            if (index < node.size - 1) {
+                                nextLevel = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                return result;
             }
 
             @Override
@@ -904,22 +977,19 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             // indexes[i] is an index into nodes[i - 1] (for i >= 1)
             private final int[] indexes = new int[depth + 1];
             private final Node[] nodes = new Node[depth];
-            private int nextLevel = -1;
-            private boolean hasNext = false;
-            // INVARIANT: if nextLevel >= 0:
+            // If nextLevel >= 0:
             //   1. indexes[nextLevel] > 0
             //   2. There is no level l > nextLevel such that indexes[l] > 0
+            private int nextLevel = -1;
+            private boolean hasNext = false;
 
             {
                 if (rootObjects != null) {
                     Node node = rootObjects;
                     for (int i = 0;; i++) {
                         final int index = indexes[i] = node.size - 1;
-                        if (index >= 0) {
-                            hasNext = true;
-                            if (index > 0) {
-                                nextLevel = i;
-                            }
+                        if (index > 0) {
+                            nextLevel = i;
                         }
 
                         if (i >= nodes.length) {
@@ -928,6 +998,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
                         node = nodes[i] = Internal.getNode(node, index);
                     }
+
+                    hasNext = node.size > 0;
                 }
             }
 
