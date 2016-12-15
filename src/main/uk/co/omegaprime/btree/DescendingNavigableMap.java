@@ -10,6 +10,21 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
+    public String toString() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public boolean equals(Object that) {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public int hashCode() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
     public Entry<K, V> lowerEntry(K key) {
         return that.higherEntry(key);
     }

@@ -10,6 +10,21 @@ class NavigableMapKeySet<K> implements NavigableSet<K> {
     }
 
     @Override
+    public String toString() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public boolean equals(Object that) {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
+    public int hashCode() {
+        throw new UnsupportedOperationException(); // FIXME
+    }
+
+    @Override
     public K lower(K k) {
         return that.lowerKey(k);
     }

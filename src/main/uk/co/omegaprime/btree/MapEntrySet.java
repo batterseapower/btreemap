@@ -2,11 +2,13 @@ package uk.co.omegaprime.btree;
 
 import java.util.*;
 
-class MapValueCollection<V> implements Collection<V> {
-    private final Map<?, V> that;
+class MapEntrySet<K, V> implements Set<Map.Entry<K, V>> {
+    private final Map<K, V> that;
+    private final Iterable<Map.Entry<K, V>> iterable;
 
-    public MapValueCollection(Map<?, V> that) {
+    public MapEntrySet(Map<K, V> that, Iterable<Map.Entry<K, V>> iterable) {
         this.that = that;
+        this.iterable = iterable;
     }
 
     @Override
@@ -36,42 +38,24 @@ class MapValueCollection<V> implements Collection<V> {
 
     @Override
     public boolean contains(Object o) {
-        for (V x : this) {
-            if (Objects.equals(x, o)) {
-                return true;
-            }
+        if (!(o instanceof Map.Entry)) {
+            return false;
         }
 
-        return false;
+        return containsEntry((Map.Entry)o);
     }
 
-    @Override
-    public Iterator<V> iterator() {
-        final Iterator<? extends Map.Entry<?, V>> it = that.entrySet().iterator();
-        return new Iterator<V>() {
-            @Override
-            public boolean hasNext() {
-                return it.hasNext();
-            }
-
-            @Override
-            public V next() {
-                return it.next().getValue();
-            }
-
-            @Override
-            public void remove() {
-                it.remove();
-            }
-        };
+    private boolean containsEntry(Map.Entry e) {
+        return Objects.equals(e.getValue(), that.get(e.getKey())) &&
+                (e.getValue() != null || that.containsKey(e.getKey()));
     }
 
     @Override
     public Object[] toArray() {
-        final Object[] result = new Object[size()];
+        final Object[] result = new Object[that.size()];
         int i = 0;
-        for (V value : this) {
-            result[i++] = value;
+        for (Map.Entry<K, V> e : this) {
+            result[i++] = e;
         }
 
         assert i == result.length;
@@ -86,9 +70,9 @@ class MapValueCollection<V> implements Collection<V> {
         }
 
         int i = 0;
-        for (V value : this) {
+        for (Map.Entry<K, V> e : this) {
             //noinspection unchecked
-            a[i++] = (T)value;
+            a[i++] = (T)e;
         }
 
         if (i < a.length) {
@@ -99,30 +83,32 @@ class MapValueCollection<V> implements Collection<V> {
     }
 
     @Override
-    public boolean add(V v) {
+    public boolean add(Map.Entry<K, V> kvEntry) {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean remove(Object o) {
-        return that.entrySet().removeIf(e -> Objects.equals(o, e.getValue()));
+        if (!(o instanceof Map.Entry)) {
+            return false;
+        }
+
+        final Map.Entry e = (Map.Entry)o;
+        if (containsEntry(e)) {
+            that.remove(e.getKey());
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        final Set<?> all = new LinkedHashSet<>(c);
-        for (V x : this) {
-            all.remove(x);
-            if (all.isEmpty()) {
-                return true;
-            }
-        }
-
-        return false;
+        return c.stream().allMatch(this::contains);
     }
 
     @Override
-    public boolean addAll(Collection<? extends V> c) {
+    public boolean addAll(Collection<? extends Map.Entry<K, V>> c) {
         throw new UnsupportedOperationException();
     }
 
@@ -137,12 +123,21 @@ class MapValueCollection<V> implements Collection<V> {
     }
 
     private boolean removeRetainAll(Collection<?> c, boolean removeIfMentioned) {
-        final Set<?> all = new LinkedHashSet<>(c);
+        final Map<Object, Set<Object>> cMap = new HashMap<>();
+        for (Object x : c) {
+            if (!(x instanceof Map.Entry)) {
+                continue;
+            }
+
+            final Map.Entry e = (Map.Entry)x;
+            cMap.computeIfAbsent(e.getKey(), _key -> new HashSet<>()).add(e.getValue());
+        }
 
         boolean changed = false;
-        final Iterator<V> it = this.iterator();
+        final Iterator<Map.Entry<K, V>> it = iterator();
         while (it.hasNext()) {
-            if (removeIfMentioned == all.contains(it.next())) {
+            final Map.Entry<K, V> e = it.next();
+            if (removeIfMentioned == cMap.getOrDefault(e.getKey(), Collections.emptySet()).contains(e.getValue())) {
                 it.remove();
                 changed = true;
             }
@@ -154,5 +149,10 @@ class MapValueCollection<V> implements Collection<V> {
     @Override
     public void clear() {
         that.clear();
+    }
+
+    @Override
+    public Iterator<Map.Entry<K, V>> iterator() {
+        return iterable.iterator();
     }
 }

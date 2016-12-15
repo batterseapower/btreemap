@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 @RunWith(JUnitQuickcheck.class)
 public class BTreeMapTest {
@@ -87,6 +87,11 @@ public class BTreeMapTest {
         public Size() { super("Size", NavigableMap::size); }
     }
 
+    // Actually a test of our descending iterator
+    public static class DescendingValues extends UnkeyedOperation<Collection<Integer>> {
+        public DescendingValues() { super("DescendingValues", m -> new ArrayList<>(m.descendingMap().values())); }
+    }
+
     public static class FirstEntry extends UnkeyedOperation<Map.Entry<String, Integer>> {
         public FirstEntry() { super("FirstEntry", NavigableMap::firstEntry); }
     }
@@ -132,7 +137,7 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(9)) {
+            switch (sourceOfRandomness.nextInt(10)) {
                 case 0: return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
                 case 1: return new Get(randomKey(sourceOfRandomness));
                 case 2: return new LowerEntry(randomKey(sourceOfRandomness));
@@ -142,6 +147,7 @@ public class BTreeMapTest {
                 case 6: return new Size();
                 case 7: return new FirstEntry();
                 case 8: return new LastEntry();
+                case 9: return new DescendingValues();
                 default: throw new IllegalStateException();
             }
         }
@@ -219,5 +225,47 @@ public class BTreeMapTest {
         }
 
         assertEquals(map.get(-1), null);
+    }
+
+    @Test
+    public void descendingIterator1Item() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        map.put("Hello", 123);
+
+        final Iterator<Map.Entry<String, Integer>> it = map.descendingEntrySet().iterator();
+
+        {
+            assertTrue(it.hasNext());
+            final Map.Entry<String, Integer> e = it.next();
+            assertEquals("Hello", e.getKey());
+            assertEquals(Integer.valueOf(123), e.getValue());
+        }
+
+        assertFalse(it.hasNext());
+    }
+
+    @Test
+    public void descendingIterator2Items() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        map.put("Hello", 123);
+        map.put("World", 321);
+
+        final Iterator<Map.Entry<String, Integer>> it = map.descendingEntrySet().iterator();
+
+        {
+            assertTrue(it.hasNext());
+            final Map.Entry<String, Integer> e = it.next();
+            assertEquals("World", e.getKey());
+            assertEquals(Integer.valueOf(321), e.getValue());
+        }
+
+        {
+            assertTrue(it.hasNext());
+            final Map.Entry<String, Integer> e = it.next();
+            assertEquals("Hello", e.getKey());
+            assertEquals(Integer.valueOf(123), e.getValue());
+        }
+
+        assertFalse(it.hasNext());
     }
 }
