@@ -825,17 +825,26 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        return new RestrictedNavigableMap<>(
+                this, fromKey, toKey,
+                RestrictedNavigableMap.Bound.inclusive(fromInclusive),
+                RestrictedNavigableMap.Bound.inclusive(toInclusive));
     }
 
     @Override
     public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        return new RestrictedNavigableMap<>(
+                this, null, toKey,
+                RestrictedNavigableMap.Bound.MISSING,
+                RestrictedNavigableMap.Bound.inclusive(inclusive));
     }
 
     @Override
     public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        return new RestrictedNavigableMap<>(
+                this, fromKey, null,
+                RestrictedNavigableMap.Bound.inclusive(inclusive),
+                RestrictedNavigableMap.Bound.MISSING);
     }
 
     @Override
