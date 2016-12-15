@@ -23,6 +23,8 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
     private final Bound minBound, maxBound;
 
     RestrictedNavigableMap(NavigableMap2<K, V> that, K min, K max, Bound minBound, Bound maxBound) {
+        assert minBound != Bound.MISSING || maxBound != Bound.MISSING;
+
         this.that = that;
         this.min = min;
         this.max = max;
@@ -194,17 +196,17 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public SortedMap<K, V> subMap(K fromKey, K toKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return subMap(fromKey, true, toKey, false);
     }
 
     @Override
     public SortedMap<K, V> headMap(K toKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return headMap(toKey, false);
     }
 
     @Override
     public SortedMap<K, V> tailMap(K fromKey) {
-        throw new UnsupportedOperationException(); // FIXME
+        return tailMap(fromKey, true);
     }
 
     @Override
@@ -269,7 +271,12 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException(); // FIXME
+        // TODO: fast path?
+        final Iterator<Entry<K, V>> it = entrySet().iterator();
+        while (it.hasNext()) {
+            it.next();
+            it.remove();
+        }
     }
 
     @Override
