@@ -75,11 +75,19 @@ public class BTreeMapTest {
     }
 
     // Actually a test of our floorIterator
+    public static class DescendingTailMap extends KeyedOperation<Collection<Integer>> {
+        public DescendingTailMap(String key) { super("DescendingTailMap", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, true).values())); }
+    }
+
+    // Actually a test of our lowerIterator
+    public static class DescendingTailMapExclusive extends KeyedOperation<Collection<Integer>> {
+        public DescendingTailMapExclusive(String key) { super("DescendingTailMapExclusive", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, false).values())); }
+    }
+
     public static class HeadMap extends KeyedOperation<Collection<Integer>> {
         public HeadMap(String key) { super("HeadMap", key, (m, k) -> new ArrayList<>(m.headMap(k, true).values())); }
     }
 
-    // Actually a test of our floorIterator
     public static class HeadMapExclusive extends KeyedOperation<Collection<Integer>> {
         public HeadMapExclusive(String key) { super("HeadMapExclusive", key, (m, k) -> new ArrayList<>(m.headMap(k, false).values())); }
     }
@@ -161,7 +169,7 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(15)) {
+            switch (sourceOfRandomness.nextInt(17)) {
                 case 0:  return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
                 case 1:  return new Get(randomKey(sourceOfRandomness));
                 case 2:  return new LowerEntry(randomKey(sourceOfRandomness));
@@ -177,6 +185,8 @@ public class BTreeMapTest {
                 case 12: return new TailMapExclusive(randomKey(sourceOfRandomness));
                 case 13: return new HeadMap(randomKey(sourceOfRandomness));
                 case 14: return new HeadMapExclusive(randomKey(sourceOfRandomness));
+                case 15: return new DescendingTailMap(randomKey(sourceOfRandomness));
+                case 16: return new DescendingTailMapExclusive(randomKey(sourceOfRandomness));
                 default: throw new IllegalStateException();
             }
         }
@@ -311,7 +321,7 @@ public class BTreeMapTest {
                 assertEquals(j, x.intValue());
                 j += 2;
             }
-            assertEquals(j, 99);
+            assertEquals(99, j);
         }
     }
 
@@ -328,7 +338,41 @@ public class BTreeMapTest {
                 assertEquals(j, x.intValue());
                 j += 2;
             }
-            assertEquals(j, 99);
+            assertEquals(99, j);
+        }
+    }
+
+    @Test
+    public void descendingTailMap() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i += 2) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 10; i < 100; i++) {
+            int j = Math.min(97, i % 2 == 1 ? i : i - 1);
+            for (Integer x : map.descendingMap().tailMap(Integer.toString(i), true).values()) {
+                assertEquals(j, x.intValue());
+                j -= 2;
+            }
+            assertEquals(9, j);
+        }
+    }
+
+    @Test
+    public void descendingTailMapExclusive() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i += 2) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 10; i < 100; i++) {
+            int j = i % 2 == 1 ? i - 2 : i - 1;
+            for (Integer x : map.descendingMap().tailMap(Integer.toString(i), false).values()) {
+                assertEquals(j, x.intValue());
+                j -= 2;
+            }
+            assertEquals(9, j);
         }
     }
 }

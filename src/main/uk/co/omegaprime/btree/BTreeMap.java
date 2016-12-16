@@ -950,72 +950,9 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             }
         }
 
-        public void positionAtCeiling(K key) {
-            nextLevel = -1;
-            hasNext = false;
-
-            Node repr = findLeaf(key);
-            if (repr == null) {
-                return;
-            }
-
-            final int leafIndex = Leaf.find(repr, key, comparator);
-            final int returnIndex;
-            if (leafIndex >= 0) {
-                returnIndex = leafIndex;
-            } else {
-                final int insertionPoint = -(leafIndex + 1);
-                if (insertionPoint < repr.size) {
-                    returnIndex = insertionPoint;
-                } else {
-                    // insertionPoint == repr.size: we need to find the first item in the next leaf node.
-                    int i = nextLevel;
-                    if (i < 0) {
-                        // Oh -- that was the last leaf node
-                        return;
-                    }
-
-                    repr = i == 0 ? rootObjects : nodes[i - 1];
-                    int index = indexes[i] + 1;
-                    for (; i < nodes.length; i++) {
-                        indexes[i] = index;
-                        repr = nodes[i] = Internal.getNode(repr, index);
-                        index = 0;
-                    }
-
-                    returnIndex = index;
-                    nextLevel = Integer.MIN_VALUE;
-                }
-            }
-
-            hasNext = true;
-            indexes[nodes.length] = returnIndex;
-
-            // Restore the nextLevel invariant
-            if (returnIndex < repr.size - 1) {
-                nextLevel = nodes.length;
-            } else if (nextLevel == Integer.MIN_VALUE) {
-                // We already "used up" backtrackDepth
-                findNextLevel();
-            }
-        }
-
-        public void positionAtHigher(K key) {
-            nextLevel = -1;
-            hasNext = false;
-
-            Node repr = findLeaf(key);
-            if (repr == null) {
-                return;
-            }
-
-            final int leafIndex = Leaf.find(repr, key, comparator);
-            final int insertionPoint = leafIndex >= 0 ? leafIndex + 1 : -(leafIndex + 1);
-            final int returnIndex;
-            if (insertionPoint < repr.size) {
-                returnIndex = insertionPoint;
-            } else {
-                // insertionPoint == repr.size: we need to find the first item in the next leaf node.
+        private void positionAtIndex(Node repr, int returnIndex) {
+            if (returnIndex >= repr.size) {
+                // We need to find the first item in the next leaf node.
                 int i = nextLevel;
                 if (i < 0) {
                     // Oh -- that was the last leaf node
@@ -1044,6 +981,32 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 // We already "used up" backtrackDepth
                 findNextLevel();
             }
+        }
+
+        public void positionAtCeiling(K key) {
+            nextLevel = -1;
+            hasNext = false;
+
+            final Node leaf = findLeaf(key);
+            if (leaf == null) {
+                return;
+            }
+
+            final int leafIndex = Leaf.find(leaf, key, comparator);
+            positionAtIndex(leaf, leafIndex >= 0 ? leafIndex : -(leafIndex + 1));
+        }
+
+        public void positionAtHigher(K key) {
+            nextLevel = -1;
+            hasNext = false;
+
+            final Node leaf = findLeaf(key);
+            if (leaf == null) {
+                return;
+            }
+
+            final int leafIndex = Leaf.find(leaf, key, comparator);
+            positionAtIndex(leaf, leafIndex >= 0 ? leafIndex + 1 : -(leafIndex + 1));
         }
 
         @Override
@@ -1166,8 +1129,6 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 final int index = indexes[i] = Internal.find(repr, key, comparator);
                 if (index > 0) {
                     nextLevel = i;
-                    // backtrackParent == nextLevel == 0 ? rootObjects : nodes[nextLevel - 1]
-                    // backtrackIndex  == indexes[nextLevel] - 1
                 }
                 repr = nodes[i] = Internal.getNode(repr, index);
             }
@@ -1175,89 +1136,17 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return repr;
         }
 
-        private void findNextLevel() {
-            for (int i = indexes.length - 1; i >= 0; i--) {
-                if (indexes[i] > 0) {
-                    nextLevel = i;
-                    break;
-                }
-            }
-        }
-
-        public void positionAtFloor(K key) {
-            nextLevel = -1;
-            hasNext = false;
-
-            Node repr = findLeaf(key);
-            if (repr == null) {
-                return;
-            }
-
-            final int leafIndex = Leaf.find(repr, key, comparator);
-            final int returnIndex;
-            if (leafIndex >= 0) {
-                returnIndex = leafIndex;
-            } else {
-                final int insertionPoint = -(leafIndex + 1);
-                if (insertionPoint > 0) {
-                    returnIndex = insertionPoint - 1;
-                } else {
-                    // insertionPoint == 0: we need to find the last item in the prior leaf node.
-                    int i = nextLevel;
-                    if (i < 0) {
-                        // Oh -- that was the first leaf node
-                        return;
-                    }
-
-                    repr = i == 0 ? rootObjects : nodes[i - 1];
-                    int index = indexes[i] + 1;
-                    for (; i < nodes.length; i++) {
-                        indexes[i] = index;
-                        repr = nodes[i] = Internal.getNode(repr, index);
-                        index = repr.size - 1;
-                    }
-
-                    returnIndex = index;
-                    nextLevel = Integer.MIN_VALUE;
-                }
-            }
-
-            hasNext = true;
-            indexes[nodes.length] = returnIndex;
-
-            // Restore the nextLevel invariant
-            if (returnIndex > 0) {
-                nextLevel = nodes.length;
-            } else if (nextLevel == Integer.MIN_VALUE) {
-                // We already "used up" backtrackDepth
-                findNextLevel();
-            }
-        }
-
-        public void positionAtLower(K key) {
-            nextLevel = -1;
-            hasNext = false;
-
-            Node repr = findLeaf(key);
-            if (repr == null) {
-                return;
-            }
-
-            final int leafIndex = Leaf.find(repr, key, comparator);
-            final int insertionPoint = leafIndex >= 0 ? leafIndex : -(leafIndex + 1);
-            final int returnIndex;
-            if (insertionPoint > 0) {
-                returnIndex = insertionPoint - 1;
-            } else {
-                // insertionPoint == 0: we need to find the last item in the prior leaf node.
+        private void positionAtIndex(int returnIndex) {
+            if (returnIndex < 0) {
+                // We need to find the last item in the prior leaf node.
                 int i = nextLevel;
                 if (i < 0) {
                     // Oh -- that was the first leaf node
                     return;
                 }
 
-                repr = i == 0 ? rootObjects : nodes[i - 1];
-                int index = indexes[i] + 1;
+                Node repr = i == 0 ? rootObjects : nodes[i - 1];
+                int index = indexes[i] - 1;
                 for (; i < nodes.length; i++) {
                     indexes[i] = index;
                     repr = nodes[i] = Internal.getNode(repr, index);
@@ -1276,10 +1165,39 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 nextLevel = nodes.length;
             } else if (nextLevel == Integer.MIN_VALUE) {
                 // We already "used up" backtrackDepth
-                findNextLevel();
+                for (int i = indexes.length - 1; i >= 0; i--) {
+                    if (indexes[i] > 0) {
+                        nextLevel = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        public void positionAtFloor(K key) {
+            nextLevel = -1;
+            hasNext = false;
+
+            final Node leaf = findLeaf(key);
+            if (leaf == null) {
+                return;
             }
 
-            throw new UnsupportedOperationException(); // FIXME
+            final int leafIndex = Leaf.find(leaf, key, comparator);
+            positionAtIndex(leafIndex >= 0 ? leafIndex : -(leafIndex + 1) - 1);
+        }
+
+        public void positionAtLower(K key) {
+            nextLevel = -1;
+            hasNext = false;
+
+            final Node leaf = findLeaf(key);
+            if (leaf == null) {
+                return;
+            }
+
+            final int leafIndex = Leaf.find(leaf, key, comparator);
+            positionAtIndex(leafIndex >= 0 ? leafIndex - 1 : -(leafIndex + 1) - 1);
         }
 
         @Override
