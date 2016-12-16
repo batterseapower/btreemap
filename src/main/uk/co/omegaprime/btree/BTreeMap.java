@@ -42,7 +42,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     // This was sort of fine but incurred more indirections & was fiddly to program against. Replacing it with this scheme
     // (such that the size and Objects are stored contiguously) sped up my get benchmark from 4.8M ops/sec to 5.3M ops/sec.
     //
-    // FIXME: the single element at the end of each internal node is unused. What to do about this? Use for parent link?
+    // FIXME: the single element at the end of each internal node is unused. What to do about this? Use for parent link -- might help us avoid allocation in iterator?
     private static class BubbledInsertion {
         private final Node leftObjects, rightObjects;
         private final Object separator; // The seperator key is <= all keys in the right and > all keys in the left
@@ -825,26 +825,26 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-        return new RestrictedNavigableMap<>(
+        return new RestrictedBTreeMap<>(
                 this, fromKey, toKey,
-                RestrictedNavigableMap.Bound.inclusive(fromInclusive),
-                RestrictedNavigableMap.Bound.inclusive(toInclusive));
+                RestrictedBTreeMap.Bound.inclusive(fromInclusive),
+                RestrictedBTreeMap.Bound.inclusive(toInclusive));
     }
 
     @Override
     public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
-        return new RestrictedNavigableMap<>(
+        return new RestrictedBTreeMap<>(
                 this, null, toKey,
-                RestrictedNavigableMap.Bound.MISSING,
-                RestrictedNavigableMap.Bound.inclusive(inclusive));
+                RestrictedBTreeMap.Bound.MISSING,
+                RestrictedBTreeMap.Bound.inclusive(inclusive));
     }
 
     @Override
     public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
-        return new RestrictedNavigableMap<>(
+        return new RestrictedBTreeMap<>(
                 this, fromKey, null,
-                RestrictedNavigableMap.Bound.inclusive(inclusive),
-                RestrictedNavigableMap.Bound.MISSING);
+                RestrictedBTreeMap.Bound.inclusive(inclusive),
+                RestrictedBTreeMap.Bound.MISSING);
     }
 
     @Override
@@ -888,191 +888,251 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         return new MapValueCollection<>(this);
     }
 
-    @Override
-    public Set<Entry<K, V>> entrySet() {
-        return new MapEntrySet<>(this, () -> new Iterator<Entry<K, V>>() {
-            // indexes[0] is an index into rootObjects.
-            // indexes[i] is an index into nodes[i - 1] (for i >= 1)
-            private final int[] indexes = new int[depth + 1];
-            private final Node[] nodes = new Node[depth];
-            // If nextLevel >= 0:
-            //   1. indexes[nextLevel] < size - 1
-            //   2. There is no level l > nextLevel such that indexes[l] < size - 1
-            private int nextLevel = -1;
-            private boolean hasNext = false;
+    private class EntryIterator implements Iterator<Entry<K, V>> {
+        // indexes[0] is an index into rootObjects.
+        // indexes[i] is an index into nodes[i - 1] (for i >= 1)
+        private final int[] indexes = new int[depth + 1];
+        private final Node[] nodes = new Node[depth];
+        // If nextLevel >= 0:
+        //   1. indexes[nextLevel] < size - 1
+        //   2. There is no level l > nextLevel such that indexes[l] < size - 1
+        private int nextLevel;
+        private boolean hasNext;
 
+        public void positionAtFirst() {
+            nextLevel = -1;
+            hasNext = false;
+            if (rootObjects != null) {
+                Node node = rootObjects;
+                for (int i = 0;; i++) {
+                    final int index = indexes[i] = 0;
+                    if (index < node.size - 1) {
+                        nextLevel = i;
+                    }
+
+                    if (i >= nodes.length) {
+                        break;
+                    }
+
+                    node = nodes[i] = Internal.getNode(node, index);
+                }
+
+                hasNext = node.size > 0;
+            }
+        }
+
+        public void positionAtCeiling(K key) {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+
+        public void positionAtHigher(K key) {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+
+        @Override
+        public boolean hasNext() {
+            return hasNext;
+        }
+
+        @Override
+        public Entry<K, V> next() {
+            if (!hasNext) {
+                throw new NoSuchElementException();
+            }
+
+            final Entry<K, V> result;
             {
-                if (rootObjects != null) {
-                    Node node = rootObjects;
-                    for (int i = 0;; i++) {
-                        final int index = indexes[i] = 0;
+                final Node leafNode = nodes.length == 0 ? rootObjects : nodes[nodes.length - 1];
+                final int ix = indexes[indexes.length - 1];
+                result = new AbstractMap.SimpleImmutableEntry<K, V>(
+                        (K)Leaf.getKey(leafNode, ix),
+                        (V)Leaf.getValue(leafNode, ix)
+                );
+            }
+
+            if (nextLevel < 0) {
+                hasNext = false;
+            } else {
+                int index = ++indexes[nextLevel];
+                Node node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
+                assert index < node.size;
+                if (nextLevel < nodes.length) {
+                    // We stepped forward to a later item in an internal node: update all children
+                    for (int i = nextLevel; i < nodes.length;) {
+                        node = nodes[i++] = Internal.getNode(node, index);
+                        index = indexes[i] = 0;
+                    }
+
+                    nextLevel = nodes.length;
+                } else if (index == node.size - 1) {
+                    // We stepped forward to the last item in a leaf node: find parent we should step forward next
+                    assert nextLevel == nodes.length;
+                    nextLevel = -1;
+                    for (int i = nodes.length - 1; i >= 0; i--) {
+                        node = i == 0 ? rootObjects : nodes[i - 1];
+                        index = indexes[i];
                         if (index < node.size - 1) {
                             nextLevel = i;
-                        }
-
-                        if (i >= nodes.length) {
                             break;
                         }
+                    }
+                }
+            }
 
-                        node = nodes[i] = Internal.getNode(node, index);
+            return result;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+    }
+
+    Iterator<Entry<K, V>> firstIterator() {
+        final EntryIterator it = new EntryIterator();
+        it.positionAtFirst();
+        return it;
+    }
+
+    Iterator<Entry<K, V>> ceilingIterator(K k) {
+        final EntryIterator it = new EntryIterator();
+        it.positionAtCeiling(k);
+        return it;
+    }
+
+    Iterator<Entry<K, V>> higherIterator(K k) {
+        final EntryIterator it = new EntryIterator();
+        it.positionAtHigher(k);
+        return it;
+    }
+
+    private class DescendingEntryIterator implements Iterator<Entry<K, V>> {
+        // indexes[0] is an index into rootObjects.
+        // indexes[i] is an index into nodes[i - 1] (for i >= 1)
+        private final int[] indexes = new int[depth + 1];
+        private final Node[] nodes = new Node[depth];
+        // If nextLevel >= 0:
+        //   1. indexes[nextLevel] > 0
+        //   2. There is no level l > nextLevel such that indexes[l] > 0
+        private int nextLevel;
+        private boolean hasNext;
+
+        public void positionAtLast() {
+            nextLevel = -1;
+            hasNext = false;
+            if (rootObjects != null) {
+                Node node = rootObjects;
+                for (int i = 0;; i++) {
+                    final int index = indexes[i] = node.size - 1;
+                    if (index > 0) {
+                        nextLevel = i;
                     }
 
-                    hasNext = node.size > 0;
+                    if (i >= nodes.length) {
+                        break;
+                    }
+
+                    node = nodes[i] = Internal.getNode(node, index);
                 }
+
+                hasNext = node.size > 0;
+            }
+        }
+
+        public void positionAtFloor(K key) {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+
+        public void positionAtLower(K key) {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+
+        @Override
+        public boolean hasNext() {
+            return hasNext;
+        }
+
+        @Override
+        public Entry<K, V> next() {
+            if (!hasNext) {
+                throw new NoSuchElementException();
             }
 
-            @Override
-            public boolean hasNext() {
-                return hasNext;
+            final Entry<K, V> result;
+            {
+                final Node leafNode = nodes.length == 0 ? rootObjects : nodes[nodes.length - 1];
+                final int ix = indexes[indexes.length - 1];
+                result = new AbstractMap.SimpleImmutableEntry<K, V>(
+                        (K)Leaf.getKey(leafNode, ix),
+                        (V)Leaf.getValue(leafNode, ix)
+                );
             }
 
-            @Override
-            public Entry<K, V> next() {
-                if (!hasNext) {
-                    throw new NoSuchElementException();
-                }
-
-                final Entry<K, V> result;
-                {
-                    final Node leafNode = nodes.length == 0 ? rootObjects : nodes[nodes.length - 1];
-                    final int ix = indexes[indexes.length - 1];
-                    result = new AbstractMap.SimpleImmutableEntry<K, V>(
-                            (K)Leaf.getKey(leafNode, ix),
-                            (V)Leaf.getValue(leafNode, ix)
-                    );
-                }
-
-                if (nextLevel < 0) {
-                    hasNext = false;
-                } else {
-                    int index = ++indexes[nextLevel];
+            if (nextLevel < 0) {
+                hasNext = false;
+            } else {
+                int index = --indexes[nextLevel];
+                assert index >= 0;
+                if (nextLevel < nodes.length) {
+                    // We stepped back to an earlier item in an internal node: update all children
                     Node node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
-                    assert index < node.size;
-                    if (nextLevel < nodes.length) {
-                        // We stepped forward to a later item in an internal node: update all children
-                        for (int i = nextLevel; i < nodes.length;) {
-                            node = nodes[i++] = Internal.getNode(node, index);
-                            index = indexes[i] = 0;
-                        }
+                    for (int i = nextLevel; i < nodes.length;) {
+                        node = nodes[i++] = Internal.getNode(node, index);
+                        index = indexes[i] = node.size - 1;
+                        assert index > 0;
+                    }
 
-                        nextLevel = nodes.length;
-                    } else if (index == node.size - 1) {
-                        // We stepped forward to the last item in a leaf node: find parent we should step forward next
-                        assert nextLevel == nodes.length;
-                        nextLevel = -1;
-                        for (int i = nodes.length - 1; i >= 0; i--) {
-                            node = i == 0 ? rootObjects : nodes[i - 1];
-                            index = indexes[i];
-                            if (index < node.size - 1) {
-                                nextLevel = i;
-                                break;
-                            }
+                    nextLevel = nodes.length;
+                } else if (index == 0) {
+                    // We stepped back to the first item in a leaf node: find parent we should step back next
+                    assert nextLevel == nodes.length;
+                    nextLevel = -1;
+                    for (int i = nodes.length - 1; i >= 0; i--) {
+                        //Node node = i == 0 ? rootObjects : nodes[i - 1];
+                        index = indexes[i];
+                        if (index > 0) {
+                            nextLevel = i;
+                            break;
                         }
                     }
                 }
-
-                return result;
             }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException(); // FIXME
-            }
-        });
+            return result;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException(); // FIXME
+        }
+    }
+
+    Iterator<Entry<K, V>> lastIterator() {
+        final DescendingEntryIterator it = new DescendingEntryIterator();
+        it.positionAtLast();;
+        return it;
+    }
+
+    Iterator<Entry<K, V>> lowerIterator(K key) {
+        final DescendingEntryIterator it = new DescendingEntryIterator();
+        it.positionAtLower(key);
+        return it;
+    }
+
+    Iterator<Entry<K, V>> floorIterator(K key) {
+        final DescendingEntryIterator it = new DescendingEntryIterator();
+        it.positionAtFloor(key);
+        return it;
+    }
+
+    @Override
+    public Set<Entry<K, V>> entrySet() {
+        return new MapEntrySet<>(this, this::firstIterator);
     }
 
     @Override
     public Set<Entry<K, V>> descendingEntrySet() {
-        return new MapEntrySet<>(this, () -> new Iterator<Entry<K, V>>() {
-            // indexes[0] is an index into rootObjects.
-            // indexes[i] is an index into nodes[i - 1] (for i >= 1)
-            private final int[] indexes = new int[depth + 1];
-            private final Node[] nodes = new Node[depth];
-            // If nextLevel >= 0:
-            //   1. indexes[nextLevel] > 0
-            //   2. There is no level l > nextLevel such that indexes[l] > 0
-            private int nextLevel = -1;
-            private boolean hasNext = false;
-
-            {
-                if (rootObjects != null) {
-                    Node node = rootObjects;
-                    for (int i = 0;; i++) {
-                        final int index = indexes[i] = node.size - 1;
-                        if (index > 0) {
-                            nextLevel = i;
-                        }
-
-                        if (i >= nodes.length) {
-                            break;
-                        }
-
-                        node = nodes[i] = Internal.getNode(node, index);
-                    }
-
-                    hasNext = node.size > 0;
-                }
-            }
-
-            @Override
-            public boolean hasNext() {
-                return hasNext;
-            }
-
-            @Override
-            public Entry<K, V> next() {
-                if (!hasNext) {
-                    throw new NoSuchElementException();
-                }
-
-                final Entry<K, V> result;
-                {
-                    final Node leafNode = nodes.length == 0 ? rootObjects : nodes[nodes.length - 1];
-                    final int ix = indexes[indexes.length - 1];
-                    result = new AbstractMap.SimpleImmutableEntry<K, V>(
-                        (K)Leaf.getKey(leafNode, ix),
-                        (V)Leaf.getValue(leafNode, ix)
-                    );
-                }
-
-                if (nextLevel < 0) {
-                    hasNext = false;
-                } else {
-                    int index = --indexes[nextLevel];
-                    assert index >= 0;
-                    if (nextLevel < nodes.length) {
-                        // We stepped back to an earlier item in an internal node: update all children
-                        Node node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
-                        for (int i = nextLevel; i < nodes.length;) {
-                            node = nodes[i++] = Internal.getNode(node, index);
-                            index = indexes[i] = node.size - 1;
-                            assert index > 0;
-                        }
-
-                        nextLevel = nodes.length;
-                    } else if (index == 0) {
-                        // We stepped back to the first item in a leaf node: find parent we should step back next
-                        assert nextLevel == nodes.length;
-                        nextLevel = -1;
-                        for (int i = nodes.length - 1; i >= 0; i--) {
-                            //Node node = i == 0 ? rootObjects : nodes[i - 1];
-                            index = indexes[i];
-                            if (index > 0) {
-                                nextLevel = i;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                return result;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException(); // FIXME
-            }
-        });
+        return new MapEntrySet<>(this, this::lastIterator);
     }
 
     @Override

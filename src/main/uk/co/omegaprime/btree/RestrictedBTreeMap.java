@@ -2,7 +2,7 @@ package uk.co.omegaprime.btree;
 
 import java.util.*;
 
-class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
+class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
     public enum Bound {
         MISSING, INCLUSIVE, EXCLUSIVE;
 
@@ -18,11 +18,11 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
         }
     }
 
-    private final NavigableMap2<K, V> that;
+    private final BTreeMap<K, V> that;
     private final K min, max;
     private final Bound minBound, maxBound;
 
-    RestrictedNavigableMap(NavigableMap2<K, V> that, K min, K max, Bound minBound, Bound maxBound) {
+    public RestrictedBTreeMap(BTreeMap<K, V> that, K min, K max, Bound minBound, Bound maxBound) {
         // Map should still work fine if this invariant is violated, but:
         //   1. It might be less efficient than using "that" directly
         //   2. It's impossible for a user to construct such an instance right now
@@ -37,11 +37,6 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
 
     private boolean inRange(Object that) {
         return minBound.lt(min, that, comparator()) && maxBound.lt(that, max, comparator());
-    }
-
-    @Override
-    public Set<Entry<K, V>> descendingEntrySet() {
-        return descendingMap().entrySet();
     }
 
     @Override
@@ -185,7 +180,7 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
     @Override
     public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
         if (maxBound.lt(toKey, max, comparator())) {
-            return new RestrictedNavigableMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive));
+            return new RestrictedBTreeMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive));
         } else {
             return this;
         }
@@ -194,7 +189,7 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
     @Override
     public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
         if (minBound.lt(min, fromKey, comparator())) {
-            return new RestrictedNavigableMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound);
+            return new RestrictedBTreeMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound);
         } else {
             return this;
         }
@@ -302,8 +297,41 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
+        return new MapEntrySet<>(this, () -> {
+            final Iterator<Entry<K, V>> it;
+            switch (minBound) {
+                case MISSING:   it = that.firstIterator(); break;
+                case INCLUSIVE: it = that.ceilingIterator(min); break;
+                case EXCLUSIVE: it = that.higherIterator(min); break;
+                default: throw new IllegalStateException();
+            }
+
+            switch (maxBound) {
+                case MISSING:   return it;
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), max, comparator()) <= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), max, comparator()) <  0);
+                default: throw new IllegalStateException();
+            }
+        });
+    }
+
+    @Override
+    public Set<Entry<K, V>> descendingEntrySet() {
         return new MapEntrySet<K, V>(this, () -> {
-            throw new UnsupportedOperationException(); // FIXME
+            final Iterator<Entry<K, V>> it;
+            switch (maxBound) {
+                case MISSING:   it = that.lastIterator(); break;
+                case INCLUSIVE: it = that.floorIterator(max); break;
+                case EXCLUSIVE: it = that.lowerIterator(max); break;
+                default: throw new IllegalStateException();
+            }
+
+            switch (minBound) {
+                case MISSING:   return it;
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), min, comparator()) >= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), min, comparator()) >  0);
+                default: throw new IllegalStateException();
+            }
         });
     }
 }
