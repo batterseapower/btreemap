@@ -23,6 +23,9 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
     private final Bound minBound, maxBound;
 
     RestrictedNavigableMap(NavigableMap2<K, V> that, K min, K max, Bound minBound, Bound maxBound) {
+        // Map should still work fine if this invariant is violated, but:
+        //   1. It might be less efficient than using "that" directly
+        //   2. It's impossible for a user to construct such an instance right now
         assert minBound != Bound.MISSING || maxBound != Bound.MISSING;
 
         this.that = that;
@@ -176,17 +179,25 @@ class RestrictedNavigableMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        return headMap(toKey, toInclusive).tailMap(fromKey, fromInclusive);
     }
 
     @Override
     public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        if (maxBound.lt(toKey, max, comparator())) {
+            return new RestrictedNavigableMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive));
+        } else {
+            return this;
+        }
     }
 
     @Override
     public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
-        throw new UnsupportedOperationException(); // FIXME
+        if (minBound.lt(min, fromKey, comparator())) {
+            return new RestrictedNavigableMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound);
+        } else {
+            return this;
+        }
     }
 
     @Override
