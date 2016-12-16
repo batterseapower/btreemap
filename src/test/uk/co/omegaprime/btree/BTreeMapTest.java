@@ -4,7 +4,6 @@ import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;
 import com.pholser.junit.quickcheck.generator.GenerationStatus;
 import com.pholser.junit.quickcheck.generator.Generator;
-import com.pholser.junit.quickcheck.generator.java.lang.StringGenerator;
 import com.pholser.junit.quickcheck.random.SourceOfRandomness;
 import com.pholser.junit.quickcheck.runner.JUnitQuickcheck;
 import org.junit.Assert;
@@ -65,6 +64,26 @@ public class BTreeMapTest {
         public CeilingEntry(String key) { super("CeilingEntry", key, NavigableMap::ceilingEntry); }
     }
 
+    // Actually a test of our ceilingIterator
+    public static class TailMap extends KeyedOperation<Collection<Integer>> {
+        public TailMap(String key) { super("TailMap", key, (m, k) -> new ArrayList<>(m.tailMap(k, true).values())); }
+    }
+
+    // Actually a test of our higherIterator
+    public static class TailMapExclusive extends KeyedOperation<Collection<Integer>> {
+        public TailMapExclusive(String key) { super("TailMapExclusive", key, (m, k) -> new ArrayList<>(m.tailMap(k, false).values())); }
+    }
+
+    // Actually a test of our floorIterator
+    public static class HeadMap extends KeyedOperation<Collection<Integer>> {
+        public HeadMap(String key) { super("HeadMap", key, (m, k) -> new ArrayList<>(m.headMap(k, true).values())); }
+    }
+
+    // Actually a test of our floorIterator
+    public static class HeadMapExclusive extends KeyedOperation<Collection<Integer>> {
+        public HeadMapExclusive(String key) { super("HeadMapExclusive", key, (m, k) -> new ArrayList<>(m.headMap(k, false).values())); }
+    }
+
     public static class UnkeyedOperation<T> implements Operation {
         private final String name;
         private final Function<NavigableMap<String, Integer>, T> f;
@@ -87,7 +106,7 @@ public class BTreeMapTest {
         public Size() { super("Size", NavigableMap::size); }
     }
 
-    // Actually a test of our asccending iterator
+    // Actually a test of our ascending iterator
     public static class Values extends UnkeyedOperation<Collection<Integer>> {
         public Values() { super("Values", m -> new ArrayList<>(m.values())); }
     }
@@ -142,7 +161,7 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(11)) {
+            switch (sourceOfRandomness.nextInt(15)) {
                 case 0:  return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
                 case 1:  return new Get(randomKey(sourceOfRandomness));
                 case 2:  return new LowerEntry(randomKey(sourceOfRandomness));
@@ -154,6 +173,10 @@ public class BTreeMapTest {
                 case 8:  return new LastEntry();
                 case 9:  return new Values();
                 case 10: return new DescendingValues();
+                case 11: return new TailMap(randomKey(sourceOfRandomness));
+                case 12: return new TailMapExclusive(randomKey(sourceOfRandomness));
+                case 13: return new HeadMap(randomKey(sourceOfRandomness));
+                case 14: return new HeadMapExclusive(randomKey(sourceOfRandomness));
                 default: throw new IllegalStateException();
             }
         }
@@ -273,5 +296,39 @@ public class BTreeMapTest {
         }
 
         assertFalse(it.hasNext());
+    }
+
+    @Test
+    public void tailMap() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i += 2) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 10; i < 100; i++) {
+            int j = i % 2 == 1 ? i : i + 1;
+            for (Integer x : map.tailMap(Integer.toString(i), true).values()) {
+                assertEquals(j, x.intValue());
+                j += 2;
+            }
+            assertEquals(j, 99);
+        }
+    }
+
+    @Test
+    public void tailMapExclusive() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i += 2) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 10; i < 100; i++) {
+            int j = Math.min(99, i % 2 == 1 ? i + 2 : i + 1);
+            for (Integer x : map.tailMap(Integer.toString(i), false).values()) {
+                assertEquals(j, x.intValue());
+                j += 2;
+            }
+            assertEquals(j, 99);
+        }
     }
 }

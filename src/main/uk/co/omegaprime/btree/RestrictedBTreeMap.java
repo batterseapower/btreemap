@@ -3,6 +3,10 @@ package uk.co.omegaprime.btree;
 import java.util.*;
 
 class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
+    private static int cmp(Object l, Object r, Comparator c) {
+        return c == null ? ((Comparable)l).compareTo(r) : c.compare(l, r);
+    }
+
     public enum Bound {
         MISSING, INCLUSIVE, EXCLUSIVE;
 
@@ -13,7 +17,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
         public boolean lt(Object x, Object y, Comparator c) {
             if (this == MISSING) return true;
 
-            final int r = Objects.compare(x, y, c);
+            final int r = cmp(x, y, c);
             return r < 0 || (r == 0 && this == INCLUSIVE);
         }
     }
@@ -308,8 +312,8 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
             switch (maxBound) {
                 case MISSING:   return it;
-                case INCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), max, comparator()) <= 0);
-                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), max, comparator()) <  0);
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), max, comparator()) <= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), max, comparator()) <  0);
                 default: throw new IllegalStateException();
             }
         });
@@ -328,8 +332,8 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
             switch (minBound) {
                 case MISSING:   return it;
-                case INCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), min, comparator()) >= 0);
-                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Objects.compare(e.getKey(), min, comparator()) >  0);
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), min, comparator()) >= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), min, comparator()) >  0);
                 default: throw new IllegalStateException();
             }
         });
