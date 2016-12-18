@@ -199,6 +199,7 @@ public class BTreeMapTest {
 
         for (Operation op : ops) {
             op.apply(expected, actual);
+            actual.check();
         }
     }
 
@@ -217,6 +218,7 @@ public class BTreeMapTest {
 
         for (Operation op : ops) {
             op.apply(expected, actual);
+            actual.check();
         }
     }
 

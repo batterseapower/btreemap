@@ -297,13 +297,23 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         this.comparator = comparator;
     }
 
-    public void check() {
+    void check() {
         if (rootObjects != null) {
             checkCore(rootObjects, depth);
         }
     }
 
     private void checkCore(Node repr, int depth) {
+        assert repr.size <= Node.MAX_FANOUT;
+        if (depth == this.depth) {
+            // The root node may be smaller than others
+            if (depth > 0) {
+                assert repr.size >= 2;
+            }
+        } else {
+            assert repr.size >= Node.MIN_FANOUT;
+        }
+
         final int size = repr.size;
         if (depth == 0) {
             for (int i = 0; i < size; i++) {
