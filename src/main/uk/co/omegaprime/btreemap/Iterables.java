@@ -1,4 +1,4 @@
-package uk.co.omegaprime.btree;
+package uk.co.omegaprime.btreemap;
 
 import java.util.Iterator;
 import java.util.Map;

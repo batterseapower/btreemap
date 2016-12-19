@@ -1,0 +1,144 @@
+// Quick guide to making a release:
+// $ git tag vX.Y.Z
+// $ gradle bintrayUpload
+//
+// Please choose a version number using the principles of semantic versioning (http://semver.org):
+//  - MAJOR version when you make incompatible API changes,
+//  - MINOR version when you add functionality in a backwards-compatible manner, and
+//  - PATCH version when you make backwards-compatible bug fixes.
+
+buildscript {
+    repositories {
+        jcenter()
+        maven { url "http://dl.bintray.com/palantir/releases" }
+    }
+    dependencies {
+        classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.4'
+        classpath 'com.palantir:gradle-gitsemver:0.7.0'
+    }
+}
+
+apply plugin: 'java'
+
+// Lets us sign our artifacts, construct a POM and use the uploadArchives task to upload to Sonatype OSS
+// The disadvantage of going this route is that anything we upload to Sonatype has to be
+// manually "closed" in the web interface (Nexus: https://oss.sonatype.org/) before it
+// shows up on Maven Central.
+apply plugin: 'com.bmuschko.nexus'
+
+// So we augment Nexus with this plugin, which lets us upload the signed, POMified artifacts
+// to Bintray. Bintray operate a Maven repo called JCenter which can be used as an alternative
+// to Maven Central, but which also supports fully automatic syncing to Maven Central via Sonatype OSS.
+// So this plugin lets us upload to Bintray + JCenter + Maven Central with a single "bintrayUpload" task
+apply plugin: 'com.jfrog.bintray'
+
+apply plugin: 'gitsemver'
+
+// The Palantir plugin infers the version number from the git tags: https://github.com/palantir/gradle-gitsemver
+// When you update the version number, please follow the principles of Semantic Versioning: http://semver.org
+version semverVersion()
+group 'uk.co.omega-prime'
+
+def projectName = 'btreemap'
+def projectDescription = 'A simple and high-performance Java B-tre:. drop-in replacement for java.util.TreeMap.'
+
+sourceCompatibility = 1.8
+
+jar {
+    baseName = projectName
+    manifest {
+        attributes 'Implementation-Title': projectName,
+                   'Implementation-Version': version
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+// I don't like writing JavaDoc for every param individually.
+// http://blog.joda.org/2014/02/turning-off-doclint-in-jdk-8-javadoc.html
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            // The -quiet is because of some sort of weird JDK JavaCompiler bug: https://discuss.gradle.org/t/passing-arguments-to-compiler-and-javadoc/1661
+            options.addStringOption('Xdoclint:all,-missing', '-quiet')
+        }
+    }
+}
+// Used by the nexus plugin
+modifyPom {
+    project {
+        name projectName
+        description projectDescription
+        url 'http://batterseapower.github.io/btreemap/'
+
+        scm {
+            url 'https://github.com/batterseapower/btreemap'
+            connection 'scm:https://batterseapower@github.com/batterseapower/btreemap.git'
+            developerConnection 'scm:git://github.com/batterseapower/btreemap.git'
+        }
+
+        licenses {
+            license {
+                name 'The Apache Software License, Version 2.0'
+                url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                distribution 'repo'
+            }
+        }
+
+        developers {
+            developer {
+                id 'batterseapower'
+                name 'Max Bolingbroke'
+                email 'batterseapower@hotmail.com'
+            }
+        }
+    }
+}
+
+// I tried to have the Nexus plugin sign things, rather than using the Bintray
+// automatic signing support, but when e.g. mdbi-1.0.2-sources.jar.asc got uploaded
+// to Bintray, Bintray seemed to mangle the filename to mdbi-1.0.2-sources-jar.asc.
+// This would obviously cause the Maven Central publish to fail because it couldn't
+// figure out what file that was meant to be a signature for. So I gave up, gave
+// Bintray my GPG private key, and turned on auto-signing in the BinTray repo settings.
+nexus {
+    sign = false
+}
+
+// e.g. Travis won't have the Bintray config
+if (hasProperty('bintrayUsername') || System.getenv().containsKey('BINTRAY_USER')) {
+    // Used by the bintray plugin
+    bintray {
+        user = System.getenv().getOrDefault('BINTRAY_USER', bintrayUsername)
+        key  = System.getenv().getOrDefault('BINTRAY_KEY', bintrayApiKey)
+        publish = true
+
+        pkg {
+            repo = 'maven'
+            name = projectName                                    
+            licenses = ['Apache-2.0']
+            vcsUrl = 'https://github.com/batterseapower/btreemap.git'
+
+            version {
+                name = project.version
+                desc = projectDescription
+                released = new Date()
+
+                mavenCentralSync {
+                    user     = System.getenv().getOrDefault('SONATYPE_USER', nexusUsername)
+                    password = System.getenv().getOrDefault('SONATYPE_PASSWORD', nexusPassword)
+                }
+            }
+        }
+
+        configurations = ['archives']
+    }
+}

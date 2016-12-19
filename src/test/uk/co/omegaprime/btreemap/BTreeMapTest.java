@@ -1,4 +1,4 @@
-package uk.co.omegaprime.btree;
+package uk.co.omegaprime.btreemap;
 
 import com.pholser.junit.quickcheck.From;
 import com.pholser.junit.quickcheck.Property;

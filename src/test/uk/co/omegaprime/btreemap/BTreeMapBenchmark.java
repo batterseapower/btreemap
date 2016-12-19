@@ -1,12 +1,10 @@
-package uk.co.omegaprime.btree;
+package uk.co.omegaprime.btreemap;
 
 import org.openjdk.jmh.Main;
 import org.openjdk.jmh.annotations.*;
 
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Random;
-import java.util.TreeMap;
 
 public class BTreeMapBenchmark {
     // -XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*BTreeMap.get

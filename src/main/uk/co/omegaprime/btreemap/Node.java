@@ -1,4 +1,4 @@
-package uk.co.omegaprime.btree;
+package uk.co.omegaprime.btreemap;
 
 import sun.misc.Unsafe;
 

@@ -1,10 +1,10 @@
-package uk.co.omegaprime.btree;
+package uk.co.omegaprime.btreemap;
 
 import java.util.*;
 
-import static uk.co.omegaprime.btree.Node.BINARY_SEARCH;
-import static uk.co.omegaprime.btree.Node.MAX_FANOUT;
-import static uk.co.omegaprime.btree.Node.MIN_FANOUT;
+import static uk.co.omegaprime.btreemap.Node.BINARY_SEARCH;
+import static uk.co.omegaprime.btreemap.Node.MAX_FANOUT;
+import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
 
 public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     public static <K extends Comparable<? super K>, V> BTreeMap<K, V> create() {
