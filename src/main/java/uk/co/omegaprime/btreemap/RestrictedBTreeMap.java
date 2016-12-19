@@ -2,7 +2,7 @@ package uk.co.omegaprime.btreemap;
 
 import java.util.*;
 
-class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
+class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
 
     private final BTreeMap<K, V> that;
     private final K min, max;
@@ -145,7 +145,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public NavigableMap<K, V> descendingMap() {
-        return new DescendingNavigableMap<>(this);
+        return new DescendingNavigableMap<>(this.asNavigableMap2());
     }
 
     @Override
@@ -159,27 +159,18 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
     }
 
     @Override
-    public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-        // FIXME: javadoc specifies several sanity checks that should generate a IllegalArgumentException. May need some of these on BTreeMap too. (or in our constructor)
-        return headMap(toKey, toInclusive).tailMap(fromKey, fromInclusive);
+    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+        return asNavigableMap2().subMap(fromKey, fromInclusive, toKey, toInclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
-        if (maxBound.lt(toKey, max, comparator())) {
-            return new RestrictedBTreeMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive));
-        } else {
-            return this;
-        }
+    public NavigableMap<K, V> headMap(K toKey, boolean inclusive) {
+        return asNavigableMap2().headMap(toKey, inclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
-        if (minBound.lt(min, fromKey, comparator())) {
-            return new RestrictedBTreeMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound);
-        } else {
-            return this;
-        }
+    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive) {
+        return asNavigableMap2().tailMap(fromKey, inclusive).asNavigableMap();
     }
 
     @Override
@@ -302,23 +293,57 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
         });
     }
 
-    @Override
-    public Set<Entry<K, V>> descendingEntrySet() {
-        return new MapEntrySet<K, V>(this, () -> {
-            final Iterator<Entry<K, V>> it;
-            switch (maxBound) {
-                case MISSING:   it = that.lastIterator(); break;
-                case INCLUSIVE: it = that.floorIterator(max); break;
-                case EXCLUSIVE: it = that.lowerIterator(max); break;
-                default: throw new IllegalStateException();
+    NavigableMap2<K, V> asNavigableMap2() {
+        return new NavigableMap2<K, V>() {
+            @Override
+            public NavigableMap<K, V> asNavigableMap() {
+                return RestrictedBTreeMap.this;
             }
 
-            switch (minBound) {
-                case MISSING:   return it;
-                case INCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >= 0);
-                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >  0);
-                default: throw new IllegalStateException();
+            @Override
+            public Set<Entry<K, V>> descendingEntrySet() {
+                return new MapEntrySet<K, V>(RestrictedBTreeMap.this, () -> {
+                    final Iterator<Entry<K, V>> it;
+                    switch (maxBound) {
+                        case MISSING:   it = that.lastIterator(); break;
+                        case INCLUSIVE: it = that.floorIterator(max); break;
+                        case EXCLUSIVE: it = that.lowerIterator(max); break;
+                        default: throw new IllegalStateException();
+                    }
+
+                    switch (minBound) {
+                        case MISSING:   return it;
+                        case INCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >= 0);
+                        case EXCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >  0);
+                        default: throw new IllegalStateException();
+                    }
+                });
+
             }
-        });
+
+            @Override
+            public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+                // FIXME: javadoc specifies several sanity checks that should generate a IllegalArgumentException. May need some of these on BTreeMap too. (or in our constructor)
+                return headMap(toKey, toInclusive).tailMap(fromKey, fromInclusive);
+            }
+
+            @Override
+            public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
+                if (maxBound.lt(toKey, max, comparator())) {
+                    return new RestrictedBTreeMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive)).asNavigableMap2();
+                } else {
+                    return this;
+                }
+            }
+
+            @Override
+            public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
+                if (minBound.lt(min, fromKey, comparator())) {
+                    return new RestrictedBTreeMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound).asNavigableMap2();
+                } else {
+                    return this;
+                }
+            }
+        };
     }
 }

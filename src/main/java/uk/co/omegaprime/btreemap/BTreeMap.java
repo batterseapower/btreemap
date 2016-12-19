@@ -25,7 +25,7 @@ import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
  * @param <K> Type of keys
  * @param <V> Type of values
  */
-public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
+public class BTreeMap<K, V> implements NavigableMap<K, V> {
     public static <K extends Comparable<? super K>, V> BTreeMap<K, V> create() {
         return new BTreeMap<K, V>(null);
     }
@@ -893,7 +893,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public NavigableMap<K, V> descendingMap() {
-        return new DescendingNavigableMap<K, V>(this);
+        return new DescendingNavigableMap<K, V>(this.asNavigableMap2());
     }
 
     @Override
@@ -907,27 +907,18 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     }
 
     @Override
-    public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-        return new RestrictedBTreeMap<>(
-                this, fromKey, toKey,
-                Bound.inclusive(fromInclusive),
-                Bound.inclusive(toInclusive));
+    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+        return asNavigableMap2().subMap(fromKey, fromInclusive, toKey, toInclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
-        return new RestrictedBTreeMap<>(
-                this, null, toKey,
-                Bound.MISSING,
-                Bound.inclusive(inclusive));
+    public NavigableMap<K, V> headMap(K toKey, boolean inclusive) {
+        return asNavigableMap2().headMap(toKey, inclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
-        return new RestrictedBTreeMap<>(
-                this, fromKey, null,
-                Bound.inclusive(inclusive),
-                Bound.MISSING);
+    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive) {
+        return asNavigableMap2().tailMap(fromKey, inclusive).asNavigableMap();
     }
 
     @Override
@@ -1368,9 +1359,42 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         return new MapEntrySet<>(this, this::firstIterator);
     }
 
-    @Override
-    public Set<Entry<K, V>> descendingEntrySet() {
-        return new MapEntrySet<>(this, this::lastIterator);
+    NavigableMap2<K, V> asNavigableMap2() {
+        return new NavigableMap2<K, V>() {
+            @Override
+            public NavigableMap<K, V> asNavigableMap() {
+                return BTreeMap.this;
+            }
+
+            @Override
+            public Set<Entry<K, V>> descendingEntrySet() {
+                return new MapEntrySet<>(BTreeMap.this, BTreeMap.this::lastIterator);
+            }
+
+            @Override
+            public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+                return new RestrictedBTreeMap<>(
+                        BTreeMap.this, fromKey, toKey,
+                        Bound.inclusive(fromInclusive),
+                        Bound.inclusive(toInclusive)).asNavigableMap2();
+            }
+
+            @Override
+            public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
+                return new RestrictedBTreeMap<>(
+                        BTreeMap.this, null, toKey,
+                        Bound.MISSING,
+                        Bound.inclusive(inclusive)).asNavigableMap2();
+            }
+
+            @Override
+            public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
+                return new RestrictedBTreeMap<>(
+                        BTreeMap.this, fromKey, null,
+                        Bound.inclusive(inclusive),
+                        Bound.MISSING).asNavigableMap2();
+            }
+        };
     }
 
     @Override

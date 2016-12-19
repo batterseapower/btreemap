@@ -26,67 +26,67 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Entry<K, V> lowerEntry(K key) {
-        return that.higherEntry(key);
+        return that.asNavigableMap().higherEntry(key);
     }
 
     @Override
     public K lowerKey(K key) {
-        return that.higherKey(key);
+        return that.asNavigableMap().higherKey(key);
     }
 
     @Override
     public Entry<K, V> floorEntry(K key) {
-        return that.ceilingEntry(key);
+        return that.asNavigableMap().ceilingEntry(key);
     }
 
     @Override
     public K floorKey(K key) {
-        return that.ceilingKey(key);
+        return that.asNavigableMap().ceilingKey(key);
     }
 
     @Override
     public Entry<K, V> ceilingEntry(K key) {
-        return that.floorEntry(key);
+        return that.asNavigableMap().floorEntry(key);
     }
 
     @Override
     public K ceilingKey(K key) {
-        return that.floorKey(key);
+        return that.asNavigableMap().floorKey(key);
     }
 
     @Override
     public Entry<K, V> higherEntry(K key) {
-        return that.lowerEntry(key);
+        return that.asNavigableMap().lowerEntry(key);
     }
 
     @Override
     public K higherKey(K key) {
-        return that.lowerKey(key);
+        return that.asNavigableMap().lowerKey(key);
     }
 
     @Override
     public Entry<K, V> firstEntry() {
-        return that.lastEntry();
+        return that.asNavigableMap().lastEntry();
     }
 
     @Override
     public Entry<K, V> lastEntry() {
-        return that.firstEntry();
+        return that.asNavigableMap().firstEntry();
     }
 
     @Override
     public Entry<K, V> pollFirstEntry() {
-        return that.pollLastEntry();
+        return that.asNavigableMap().pollLastEntry();
     }
 
     @Override
     public Entry<K, V> pollLastEntry() {
-        return that.pollFirstEntry();
+        return that.asNavigableMap().pollFirstEntry();
     }
 
     @Override
     public NavigableMap<K, V> descendingMap() {
-        return that;
+        return that.asNavigableMap();
     }
 
     @Override
@@ -96,7 +96,7 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public NavigableSet<K> descendingKeySet() {
-        return that.navigableKeySet();
+        return that.asNavigableMap().navigableKeySet();
     }
 
     @Override
@@ -116,7 +116,7 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public Comparator<? super K> comparator() {
-        return Collections.reverseOrder(that.comparator());
+        return Collections.reverseOrder(that.asNavigableMap().comparator());
     }
 
     @Override
@@ -136,57 +136,57 @@ class DescendingNavigableMap<K, V> implements NavigableMap<K, V> {
 
     @Override
     public K firstKey() {
-        return that.lastKey();
+        return that.asNavigableMap().lastKey();
     }
 
     @Override
     public K lastKey() {
-        return that.firstKey();
+        return that.asNavigableMap().firstKey();
     }
 
     @Override
     public int size() {
-        return that.size();
+        return that.asNavigableMap().size();
     }
 
     @Override
     public boolean isEmpty() {
-        return that.isEmpty();
+        return that.asNavigableMap().isEmpty();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return that.containsKey(key);
+        return that.asNavigableMap().containsKey(key);
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return that.containsValue(value);
+        return that.asNavigableMap().containsValue(value);
     }
 
     @Override
     public V get(Object key) {
-        return that.get(key);
+        return that.asNavigableMap().get(key);
     }
 
     @Override
     public V put(K key, V value) {
-        return that.put(key, value);
+        return that.asNavigableMap().put(key, value);
     }
 
     @Override
     public V remove(Object key) {
-        return that.remove(key);
+        return that.asNavigableMap().remove(key);
     }
 
     @Override
     public void putAll(Map<? extends K, ? extends V> m) {
-        that.putAll(m);
+        that.asNavigableMap().putAll(m);
     }
 
     @Override
     public void clear() {
-        that.clear();
+        that.asNavigableMap().clear();
     }
 
     @Override

@@ -331,7 +331,7 @@ public class BTreeMapTest {
         final BTreeMap<String, Integer> map = BTreeMap.create();
         map.put("Hello", 123);
 
-        final Iterator<Map.Entry<String, Integer>> it = map.descendingEntrySet().iterator();
+        final Iterator<Map.Entry<String, Integer>> it = map.asNavigableMap2().descendingEntrySet().iterator();
 
         {
             assertTrue(it.hasNext());
@@ -349,7 +349,7 @@ public class BTreeMapTest {
         map.put("Hello", 123);
         map.put("World", 321);
 
-        final Iterator<Map.Entry<String, Integer>> it = map.descendingEntrySet().iterator();
+        final Iterator<Map.Entry<String, Integer>> it = map.asNavigableMap2().descendingEntrySet().iterator();
 
         {
             assertTrue(it.hasNext());
