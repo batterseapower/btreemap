@@ -284,7 +284,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
-        return new MapEntrySet<>(this, () -> {
+        return new MapEntrySet<K, V>(this, () -> {
             final Iterator<Entry<K, V>> it;
             switch (minBound) {
                 case MISSING:   it = that.firstIterator(); break;

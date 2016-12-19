@@ -6,6 +6,25 @@ import static uk.co.omegaprime.btreemap.Node.BINARY_SEARCH;
 import static uk.co.omegaprime.btreemap.Node.MAX_FANOUT;
 import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
 
+/**
+ * A B-tree based {@link NavigableMap} implementation.
+ * <p>
+ * All values in the map are stored at leaf nodes, and all leaf nodes are at the same depth. This ensures that accesses
+ * to the map via e.g. {@code get}, {@code put} and {@code remove} all take log(n) time. In contrast to a balanced binary
+ * tree (like that used by {@link java.util.TreeMap}), each node may holds more than one key. This makes the datastructure
+ * more cache-friendly: you can expect it to be around 50% faster than {@code TreeMap} for workloads that do not fit in cache.
+ * <p>
+ * The map is sorted either according to the Comparable method of the key type, or via a user-supplied {@code Comparator}.
+ * This ordering should be consistent with {@code equals}.
+ * <p>
+ * The implementation is unsynchronized, and there are no guarantees as to what will happen if you make use of iterator
+ * that was created before some operation that modified the map.
+ * <p>
+ * {@code Entry} instances returned by this class are immutable and hence do not support the {@link Entry#setValue(Object)} method.
+ *
+ * @param <K> Type of keys
+ * @param <V> Type of values
+ */
 public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     public static <K extends Comparable<? super K>, V> BTreeMap<K, V> create() {
         return new BTreeMap<K, V>(null);
