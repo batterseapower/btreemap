@@ -41,7 +41,7 @@ version semverVersion()
 group 'uk.co.omega-prime'
 
 def projectName = 'btreemap'
-def projectDescription = 'A simple and high-performance Java B-tre:. drop-in replacement for java.util.TreeMap.'
+def projectDescription = 'A simple and high-performance Java B-tree: drop-in replacement for java.util.TreeMap.'
 
 sourceCompatibility = 1.8
 
