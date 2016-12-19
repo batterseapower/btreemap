@@ -1,7 +1,8 @@
 # btreemap
 
-Max's DataBase Interface: a simple but powerful JDBC wrapper inspired by JDBI
+This is a simple and high-performance Java B-tree that is intended to be used as a drop-in replacement for java.util.TreeMap
+in situations where the vanilla binary trees used by the JDK are just too slow.
 
-To get started with MDBI, please see the [website](http://batterseapower.github.io/bteremap/). If you just want some JARs, check out [Maven Central](http://mvnrepository.com/artifact/uk.co.omega-prime/btreemap/).
+The source code lives at [GitHub](http://batterseapower.github.io/btreemap/). If you just want some JARs, check out [Maven Central](http://mvnrepository.com/artifact/uk.co.omega-prime/btreemap/).
 
-[![Build Status](https://travis-ci.org/batterseapower/mdbi.svg?branch=master)](https://travis-ci.org/batterseapower/mdbi)
+[![Build Status](https://travis-ci.org/batterseapower/btreemap.svg?branch=master)](https://travis-ci.org/batterseapower/btreemap)
