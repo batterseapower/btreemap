@@ -48,6 +48,10 @@ public class BTreeMapTest {
         public Get(String key) { super("Get", key, Map::get); }
     }
 
+    public static class Remove extends KeyedOperation<Integer> {
+        public Remove(String key) { super("Remove", key, Map::remove); }
+    }
+
     public static class LowerEntry extends KeyedOperation<Map.Entry<String, Integer>> {
         public LowerEntry(String key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
     }
@@ -162,6 +166,17 @@ public class BTreeMapTest {
         return new String(cs);
     }
 
+    private static String randomKey(SourceOfRandomness sor, int maxLength) {
+        // Use a small keyspace so that we'll randomly get some collisions. Tests more interesting that way!
+        final int length = sor.nextInt(1, maxLength);
+        final char[] cs = new char[length];
+        for (int i = 0; i < length; i++) {
+            cs[i] = (char)('a' + sor.nextInt('z' - 'a'));
+        }
+
+        return new String(cs);
+    }
+
     public static class OperationGenerator extends Generator<Operation> {
         public OperationGenerator() {
             super(Operation.class);
@@ -169,7 +184,7 @@ public class BTreeMapTest {
 
         @Override
         public Operation generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
-            switch (sourceOfRandomness.nextInt(17)) {
+            switch (sourceOfRandomness.nextInt(18)) {
                 case 0:  return new Put(randomKey(sourceOfRandomness), sourceOfRandomness.nextInt());
                 case 1:  return new Get(randomKey(sourceOfRandomness));
                 case 2:  return new LowerEntry(randomKey(sourceOfRandomness));
@@ -187,8 +202,18 @@ public class BTreeMapTest {
                 case 14: return new HeadMapExclusive(randomKey(sourceOfRandomness));
                 case 15: return new DescendingTailMap(randomKey(sourceOfRandomness));
                 case 16: return new DescendingTailMapExclusive(randomKey(sourceOfRandomness));
+                case 17: return new Remove(randomKey(sourceOfRandomness));
                 default: throw new IllegalStateException();
             }
+        }
+    }
+
+    public static class KeyGenerator extends Generator<String> {
+        public KeyGenerator() { super(String.class); }
+
+        @Override
+        public String generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
+            return randomKey(sourceOfRandomness);
         }
     }
 
@@ -199,7 +224,7 @@ public class BTreeMapTest {
 
         for (Operation op : ops) {
             op.apply(expected, actual);
-            actual.check();
+            actual.checkAssumingKeysNonNull();
         }
     }
 
@@ -209,16 +234,49 @@ public class BTreeMapTest {
         final BTreeMap<String, Integer> actual = BTreeMap.create();
 
         // Try to make sure we have at least one internal node
-        final SourceOfRandomness sor = new SourceOfRandomness(new Random(1337));
-        for (int i = 0; i < 128; i++) {
-            final String key = randomKey(sor);
-            expected.put(key, i);
-            actual  .put(key, i);
-        }
+        createMaps(expected, actual, 128);
 
         for (Operation op : ops) {
             op.apply(expected, actual);
-            actual.check();
+            actual.checkAssumingKeysNonNull();
+        }
+    }
+
+    @Property(trials = 1000)
+    public void randomOperationSequenceOnGiantMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+        final TreeMap<String, Integer> expected = new TreeMap<>();
+        final BTreeMap<String, Integer> actual = BTreeMap.create();
+
+        // Try to make sure we have at least 2 levels of internal nodes
+        createMaps(expected, actual, 1024);
+
+        for (Operation op : ops) {
+            op.apply(expected, actual);
+            actual.checkAssumingKeysNonNull();
+        }
+    }
+
+    @Property
+    public void randomDeletionSequenceOnGiantMap(List<@From(KeyGenerator.class) String> keys) {
+        final TreeMap<String, Integer> expected = new TreeMap<>();
+        final BTreeMap<String, Integer> actual = BTreeMap.create();
+
+        // Try to make sure we have at least 2 levels of internal nodes
+        createMaps(expected, actual, 1024);
+        actual.checkAssumingKeysNonNull();
+
+        for (String key : keys) {
+            assertEquals(expected.remove(key), actual.remove(key));
+            actual.checkAssumingKeysNonNull();
+        }
+    }
+
+    private static void createMaps(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual, int maxSize) {
+        final SourceOfRandomness sor = new SourceOfRandomness(new Random(1337));
+        for (int i = 0; i < maxSize; i++) {
+            final String key = randomKey(sor);
+            expected.put(key, i);
+            actual  .put(key, i);
         }
     }
 
@@ -375,6 +433,43 @@ public class BTreeMapTest {
                 j -= 2;
             }
             assertEquals(9, j);
+        }
+    }
+
+    @Test
+    public void removeSmallMap() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+
+        assertNull(map.remove("hello"));
+
+        map.put("hello", 1);
+
+        assertEquals(Integer.valueOf(1), map.remove("hello"));
+        assertNull(map.get("hello"));
+        assertEquals(0, map.size());
+    }
+
+    @Test
+    public void putRemoveForward() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i++) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 11; i < 99; i++) {
+            assertEquals(Integer.valueOf(i), map.remove(Integer.toString(i)));
+        }
+    }
+
+    @Test
+    public void putRemoveBackward() {
+        final BTreeMap<String, Integer> map = BTreeMap.create();
+        for (int i = 11; i < 99; i++) {
+            map.put(Integer.toString(i), i);
+        }
+
+        for (int i = 98; i >= 11; i--) {
+            assertEquals(Integer.valueOf(i), map.remove(Integer.toString(i)));
         }
     }
 }

@@ -76,12 +76,20 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             }
         }
 
+        public static int getKeyIndex(int index) {
+            return index;
+        }
+
         public static Object getKey(Node keysValues, int index) {
             return keysValues.get(index);
         }
 
+        public static int getValueIndex(int index) {
+            return MAX_FANOUT + index;
+        }
+
         public static Object getValue(Node keysValues, int index) {
-            return keysValues.get(MAX_FANOUT + index);
+            return keysValues.get(getValueIndex(index));
         }
 
         public static Object putOrDieIfFull(Node keysValues, Object key, Object value, Comparator comparator) {
@@ -182,7 +190,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 final int index = repr.binarySearch(0, size - 1, key, comparator);
                 return index < 0 ? -(index + 1) : index + 1;
             } else {
-                // Tried doing the comparator == null check outside the loop, but not a significant speed boost
+                // Tried doing the comparator == null checkAssumingKeysNonNull outside the loop, but not a significant speed boost
                 for (int i = 0; i < size - 1; i++) {
                     final Object checkKey = repr.get(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
@@ -199,7 +207,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             return size < MAX_FANOUT;
         }
 
-        public static void putAtIndex(Node repr, int nodeIndex, BubbledInsertion toBubble) {
+        public static void putAtIndex(Node repr, int index, BubbledInsertion toBubble) {
             assert canPutAtIndex(repr.size);
 
             // Tree:         Bubbled input:
@@ -209,14 +217,23 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
             //  Key   0  S  1
             //  Node 0 1A 1B 2
 
-            final int size = repr.size;
-            Node.arraycopy(repr,  getKeyIndex (nodeIndex),     repr,  getKeyIndex (nodeIndex + 1), size - nodeIndex - 1);
-            Node.arraycopy(repr,  getNodeIndex(nodeIndex + 1), repr,  getNodeIndex(nodeIndex + 2), size - nodeIndex - 1);
-            repr.set(getKeyIndex (nodeIndex)    , toBubble.separator);
-            repr.set(getNodeIndex(nodeIndex)    , toBubble.leftObjects);
-            repr.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
+            final int size = repr.size++;
+            Node.arraycopy(repr,  getKeyIndex (index),     repr,  getKeyIndex (index + 1), size - index - 1);
+            Node.arraycopy(repr,  getNodeIndex(index + 1), repr,  getNodeIndex(index + 2), size - index - 1);
 
-            repr.size = size + 1;
+            repr.set(getKeyIndex (index)    , toBubble.separator);
+            repr.set(getNodeIndex(index)    , toBubble.leftObjects);
+            repr.set(getNodeIndex(index + 1), toBubble.rightObjects);
+        }
+
+        private static void deleteAtIndex(Node node, int index) {
+            final int size = --node.size;
+            Node.arraycopy(node, getKeyIndex (index),     node, getKeyIndex (index - 1), size - index);
+            Node.arraycopy(node, getNodeIndex(index + 1), node, getNodeIndex(index),     size - index);
+
+            // Avoid memory leaks
+            node.set(getKeyIndex(size - 1), null);
+            node.set(getNodeIndex(size),    null);
         }
 
         public static BubbledInsertion bubblePutAtIndex(Node repr, int nodeIndex, BubbledInsertion toBubble) {
@@ -297,13 +314,17 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
         this.comparator = comparator;
     }
 
-    void check() {
+    void checkAssumingKeysNonNull() {
         if (rootObjects != null) {
-            checkCore(rootObjects, depth);
+            checkCore(rootObjects, depth, null, null, Bound.MISSING, Bound.MISSING);
         }
     }
 
-    private void checkCore(Node repr, int depth) {
+    private void checkInRange(Object k, Object min, Object max, Bound minBound, Bound maxBound) {
+        assert minBound.lt(min, k, comparator) && maxBound.lt(k, max, comparator);
+    }
+
+    private void checkCore(Node repr, int depth, Object min, Object max, Bound minBound, Bound maxBound) {
         assert repr.size <= Node.MAX_FANOUT;
         if (depth == this.depth) {
             // The root node may be smaller than others
@@ -316,16 +337,44 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
         final int size = repr.size;
         if (depth == 0) {
-            for (int i = 0; i < size; i++) {
-                assert Leaf.getKey(repr, i) != null;
-            }
-        } else {
-            for (int i = 0; i < size - 1; i++) {
-                assert Internal.getKey(repr, i) != null;
+            int i;
+            for (i = 0; i < size; i++) {
+                Object k = Leaf.getKey(repr, i);
+                checkInRange(k, min, max, minBound, maxBound);
+                assert k != null;
             }
 
-            for (int i = 0; i < size; i++) {
-                checkCore(Internal.getNode(repr, i), depth - 1);
+            // To avoid memory leaks
+            for (; i < Node.MAX_FANOUT; i++) {
+                assert Leaf.getKey(repr, i) == null;
+            }
+        } else {
+            {
+                int i;
+                for (i = 0; i < size - 1; i++) {
+                    Object k = Internal.getKey(repr, i);
+                    checkInRange(k, min, max, minBound, maxBound);
+                    assert k != null;
+                }
+
+                // To avoid memory leaks
+                for (; i < Node.MAX_FANOUT - 1; i++) {
+                    assert Internal.getKey(repr, i) == null;
+                }
+            }
+
+            {
+                int i;
+                checkCore    (Internal.getNode(repr, 0),        depth - 1, min,                             Internal.getKey(repr, 0), minBound,        Bound.EXCLUSIVE);
+                for (i = 1; i < size - 1; i++) {
+                    checkCore(Internal.getNode(repr, i),        depth - 1, Internal.getKey(repr, i - 1),    Internal.getKey(repr, i), Bound.INCLUSIVE, Bound.EXCLUSIVE);
+                }
+                checkCore    (Internal.getNode(repr, size - 1), depth - 1, Internal.getKey(repr, size - 2), max,                      Bound.INCLUSIVE, maxBound);
+
+                // To avoid memory leaks
+                for (i = size; i < Node.MAX_FANOUT; i++) {
+                    assert Internal.getNode(repr, i) == null;
+                }
             }
         }
     }
@@ -837,24 +886,24 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
     public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
         return new RestrictedBTreeMap<>(
                 this, fromKey, toKey,
-                RestrictedBTreeMap.Bound.inclusive(fromInclusive),
-                RestrictedBTreeMap.Bound.inclusive(toInclusive));
+                Bound.inclusive(fromInclusive),
+                Bound.inclusive(toInclusive));
     }
 
     @Override
     public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
         return new RestrictedBTreeMap<>(
                 this, null, toKey,
-                RestrictedBTreeMap.Bound.MISSING,
-                RestrictedBTreeMap.Bound.inclusive(inclusive));
+                Bound.MISSING,
+                Bound.inclusive(inclusive));
     }
 
     @Override
     public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
         return new RestrictedBTreeMap<>(
                 this, fromKey, null,
-                RestrictedBTreeMap.Bound.inclusive(inclusive),
-                RestrictedBTreeMap.Bound.MISSING);
+                Bound.inclusive(inclusive),
+                Bound.MISSING);
     }
 
     @Override
@@ -1300,6 +1349,162 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public V remove(Object key) {
-        throw new UnsupportedOperationException(); // FIXME
+        if (rootObjects == null) {
+            return null;
+        }
+
+        final V result = removeCore(rootObjects, depth, key);
+        if (rootObjects.size == 1 && depth > 0) {
+            rootObjects = Internal.getNode(rootObjects, 0);
+            depth--;
+        }
+
+        return result;
+    }
+
+    private V removeCore(Node node, int depth, Object key) {
+        if (depth == 0) {
+            final int index = Leaf.find(node, key, comparator);
+            if (index < 0) {
+                return null;
+            } else {
+                final V result = (V)Leaf.getValue(node, index);
+
+                size--;
+                node.size--;
+                Node.arraycopy(node, Leaf.getKeyIndex(index)   + 1, node, Leaf.getKeyIndex(index),   node.size - index);
+                Node.arraycopy(node, Leaf.getValueIndex(index) + 1, node, Leaf.getValueIndex(index), node.size - index);
+
+                // Avoid memory leaks
+                node.set(Leaf.getKeyIndex(node.size),   null);
+                node.set(Leaf.getValueIndex(node.size), null);
+
+                return result;
+            }
+        } else {
+            final int index = Internal.find(node, key, comparator);
+            final Node child = Internal.getNode(node, index);
+            final V result = removeCore(child, depth - 1, key);
+
+            if (child.size < Node.MIN_FANOUT) {
+                assert child.size == Node.MIN_FANOUT - 1;
+
+                if (index > 0) {
+                    // Take key from or merge with predecessor
+                    final Node pred = Internal.getNode(node, index - 1);
+                    if (pred.size > Node.MIN_FANOUT) {
+                        // Can take key from predecessor
+                        final int predSize = --pred.size;
+                        final int childSize = child.size++;
+
+                        final Object predLtKey;
+                        if (depth == 1) {
+                            // Children are leaves
+                            predLtKey = pred.get(Leaf.getKeyIndex(predSize));
+                            final Object predValue = pred.get(Leaf.getValueIndex(predSize));
+
+                            // Avoid memory leaks
+                            pred.set(Leaf.getKeyIndex(predSize),   null);
+                            pred.set(Leaf.getValueIndex(predSize), null);
+
+                            Node.arraycopy(child, Leaf.getKeyIndex(0),   child, Leaf.getKeyIndex(1),   childSize);
+                            Node.arraycopy(child, Leaf.getValueIndex(0), child, Leaf.getValueIndex(1), childSize);
+                            child.set(Leaf.getKeyIndex(0),   predLtKey);
+                            child.set(Leaf.getValueIndex(0), predValue);
+                        } else {
+                            // Children are internal nodes
+                            predLtKey = Internal.getKey(pred, predSize - 1);
+                            final Object predKey = Internal.getKey(node, index - 1);
+                            final Node predNode = Internal.getNode(pred, predSize);
+
+                            // Avoid memory leaks
+                            pred.set(Internal.getKeyIndex(predSize - 1), null);
+                            pred.set(Internal.getNodeIndex(predSize),    null);
+
+                            Node.arraycopy(child, Internal.getKeyIndex(0),  child, Internal.getKeyIndex(1),  childSize - 1);
+                            Node.arraycopy(child, Internal.getNodeIndex(0), child, Internal.getNodeIndex(1), childSize);
+                            child.set(Internal.getKeyIndex(0),  predKey);
+                            child.set(Internal.getNodeIndex(0), predNode);
+                        }
+
+                        node.set(Internal.getKeyIndex(index - 1), predLtKey);
+                    } else {
+                        // Can merge with predecessor
+                        final Object middleKey = Internal.getKey(node, index - 1);
+                        Internal.deleteAtIndex(node, index);
+                        appendToPred(pred, middleKey, child, depth - 1);
+                    }
+                } else {
+                    // Take key from or merge with successor (there must be one because all nodes except the root must have at least 1 sibling)
+                    final Node succ = Internal.getNode(node, index + 1);
+                    if (succ.size > Node.MIN_FANOUT) {
+                        // Can take key from successor
+                        final int succSize = --succ.size;
+                        final int childSize = child.size++;
+
+                        final Object succGteKey;
+                        if (depth == 1) {
+                            // Children are leaves
+                            succGteKey = Leaf.getKey(succ, 1);
+                            final Object succKey = succ.get(Leaf.getKeyIndex(0));
+                            final Object succValue = succ.get(Leaf.getValueIndex(0));
+
+                            Node.arraycopy(succ, Leaf.getKeyIndex(1),   succ, Leaf.getKeyIndex(0),   succSize);
+                            Node.arraycopy(succ, Leaf.getValueIndex(1), succ, Leaf.getValueIndex(0), succSize);
+
+                            // Avoid memory leaks
+                            succ.set(Leaf.getKeyIndex(succSize),   null);
+                            succ.set(Leaf.getValueIndex(succSize), null);
+
+                            child.set(Leaf.getKeyIndex(childSize),   succKey);
+                            child.set(Leaf.getValueIndex(childSize), succValue);
+                        } else {
+                            // Children are internal nodes
+                            succGteKey = Internal.getKey(succ, 0);
+                            final Object succKey = Internal.getKey(node, index);
+                            final Node succNode = Internal.getNode(succ, 0);
+
+                            Node.arraycopy(succ, Internal.getKeyIndex(1),  succ, Internal.getKeyIndex(0),  succSize - 1);
+                            Node.arraycopy(succ, Internal.getNodeIndex(1), succ, Internal.getNodeIndex(0), succSize);
+
+                            // Avoid memory leaks
+                            succ.set(Internal.getKeyIndex(succSize - 1), null);
+                            succ.set(Internal.getNodeIndex(succSize),    null);
+
+                            child.set(Internal.getKeyIndex(childSize),  succKey);
+                            child.set(Internal.getNodeIndex(childSize), succNode);
+                        }
+
+                        node.set(Internal.getKeyIndex(index), succGteKey);
+                    } else {
+                        // Can merge with successor
+                        final Object middleKey = Internal.getKey(node, index);
+                        Internal.deleteAtIndex(node, index + 1);
+                        appendToPred(child, middleKey, succ, depth - 1);
+                    }
+                }
+            }
+
+            return result;
+        }
+    }
+
+    private static void appendToPred(Node pred, Object middleKey, Node succ, int depth) {
+        final int succSize = succ.size;
+        final int predSize = pred.size;
+
+        pred.size = predSize + succSize;
+        assert pred.size == MAX_FANOUT;
+
+        if (depth == 0) {
+            // Children are leaves
+            Node.arraycopy(succ, Leaf.getKeyIndex(0),   pred, Leaf.getKeyIndex(predSize),   succSize);
+            Node.arraycopy(succ, Leaf.getValueIndex(0), pred, Leaf.getValueIndex(predSize), succSize);
+        } else {
+            // Children are internal nodes
+            pred.set(Internal.getKeyIndex(predSize - 1), middleKey);
+            Node.arraycopy(succ, Internal.getKeyIndex(0),  pred, Internal.getKeyIndex(predSize),  succSize - 1);
+            Node.arraycopy(succ, Internal.getNodeIndex(0), pred, Internal.getNodeIndex(predSize), succSize);
+        }
     }
 }

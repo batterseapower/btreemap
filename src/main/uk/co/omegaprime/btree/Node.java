@@ -9,7 +9,7 @@ import java.lang.reflect.Modifier;
 import java.util.*;
 
 // This is basically a fixed size Object[] with a "int" size field
-class Node {
+final class Node {
     // We're going to do a generalized (2, 3) tree i.e. each internal node will have between m and (2m - 1) children inclusive, for m >= 2
     //
     // What's a sensible value for m? It would be good if each array we allocate fits within one cache line. On Skylake,

@@ -3,24 +3,6 @@ package uk.co.omegaprime.btree;
 import java.util.*;
 
 class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
-    private static int cmp(Object l, Object r, Comparator c) {
-        return c == null ? ((Comparable)l).compareTo(r) : c.compare(l, r);
-    }
-
-    public enum Bound {
-        MISSING, INCLUSIVE, EXCLUSIVE;
-
-        public static Bound inclusive(boolean flag) {
-            return flag ? INCLUSIVE : EXCLUSIVE;
-        }
-
-        public boolean lt(Object x, Object y, Comparator c) {
-            if (this == MISSING) return true;
-
-            final int r = cmp(x, y, c);
-            return r < 0 || (r == 0 && this == INCLUSIVE);
-        }
-    }
 
     private final BTreeMap<K, V> that;
     private final K min, max;
@@ -178,6 +160,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
     @Override
     public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+        // FIXME: javadoc specifies several sanity checks that should generate a IllegalArgumentException. May need some of these on BTreeMap too. (or in our constructor)
         return headMap(toKey, toInclusive).tailMap(fromKey, fromInclusive);
     }
 
@@ -312,8 +295,8 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
             switch (maxBound) {
                 case MISSING:   return it;
-                case INCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), max, comparator()) <= 0);
-                case EXCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), max, comparator()) <  0);
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), max, comparator()) <= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), max, comparator()) <  0);
                 default: throw new IllegalStateException();
             }
         });
@@ -332,8 +315,8 @@ class RestrictedBTreeMap<K, V> implements NavigableMap2<K, V> {
 
             switch (minBound) {
                 case MISSING:   return it;
-                case INCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), min, comparator()) >= 0);
-                case EXCLUSIVE: return Iterators.takeWhile(it, e -> cmp(e.getKey(), min, comparator()) >  0);
+                case INCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >= 0);
+                case EXCLUSIVE: return Iterators.takeWhile(it, e -> Bound.cmp(e.getKey(), min, comparator()) >  0);
                 default: throw new IllegalStateException();
             }
         });
