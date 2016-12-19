@@ -190,8 +190,10 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                 final int index = repr.binarySearch(0, size - 1, key, comparator);
                 return index < 0 ? -(index + 1) : index + 1;
             } else {
-                // Tried doing the comparator == null checkAssumingKeysNonNull outside the loop, but not a significant speed boost
-                for (int i = 0; i < size - 1; i++) {
+                // Tried doing the comparator == null check outside the loop, but not a significant speed boost
+                // Tried not exiting early (improves branch prediction) but significantly worse.
+                int i;
+                for (i = 0; i < size - 1; i++) {
                     final Object checkKey = repr.get(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
                     if (cmp > 0) {
@@ -199,7 +201,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
                     }
                 }
 
-                return size - 1;
+                return i;
             }
         }
 
@@ -409,12 +411,15 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
     @Override
     public V getOrDefault(Object key, V dflt) {
-        if (rootObjects == null) {
-            return dflt;
-        }
+        final Comparator<? super K> comparator = this.comparator;
 
         Node nextObjects = rootObjects;
         int depth = this.depth;
+
+        if (nextObjects == null) {
+            return dflt;
+        }
+
         while (depth-- > 0) {
             final int ix = Internal.find(nextObjects, key, comparator);
             nextObjects = Internal.getNode(nextObjects, ix);
@@ -1123,7 +1128,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
         @Override
         public void remove() {
-            throw new UnsupportedOperationException(); // FIXME
+            // FIXME
+            throw new UnsupportedOperationException("Iterator.remove() isn't supported yet, but I wouldn't be averse to adding it.");
         }
     }
 
@@ -1315,7 +1321,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V>, NavigableMap2<K, V> {
 
         @Override
         public void remove() {
-            throw new UnsupportedOperationException(); // FIXME
+            // FIXME
+            throw new UnsupportedOperationException("Iterator.remove() isn't supported yet, but I wouldn't be averse to adding it.");
         }
     }
 

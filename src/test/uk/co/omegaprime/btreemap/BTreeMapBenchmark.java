@@ -5,6 +5,7 @@ import org.openjdk.jmh.annotations.*;
 
 import java.util.NavigableMap;
 import java.util.Random;
+import java.util.TreeMap;
 
 public class BTreeMapBenchmark {
     // -XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*BTreeMap.get
@@ -14,7 +15,9 @@ public class BTreeMapBenchmark {
     @State(Scope.Thread)
     public static class MyState {
         public final Random random = new Random();
-        public final NavigableMap<Integer, Integer> warmedMap = BTreeMap.create();
+        public final NavigableMap<Integer, Integer> warmedMap =
+                BTreeMap.create();
+                //new TreeMap<>();
         public Integer key;
 
         private int nextKey() {

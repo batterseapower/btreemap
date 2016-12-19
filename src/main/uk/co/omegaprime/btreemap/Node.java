@@ -30,7 +30,7 @@ final class Node {
     //   Benchmark               Mode  Cnt        Score        Error  Units
     //   BTreeMapBenchmark.get  thrpt   40  3226633.131 ± 195725.464  ops/s
     //   BTreeMapBenchmark.put  thrpt   40  2561772.533 ±  31611.667  ops/s
-    public static final int MIN_FANOUT = 8;
+    public static final int MIN_FANOUT = 16;
     public static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
 
     // Linear search seems about ~20% faster than binary (for MIN_FANOUT = 8 at least)
@@ -85,6 +85,15 @@ final class Node {
             o08, o09, o10, o11, o12, o13, o14, o15,
             o16, o17, o18, o19, o20, o21, o22, o23,
             o24, o25, o26, o27, o28, o29;
+    private Object
+            o30, o31, o32, o33, o34, o35, o36, o37,
+            o38, o39, o40, o41, o42, o43, o44, o45,
+            o46, o47, o48, o49, o50, o51, o52, o53,
+            o54, o55, o56, o57, o58, o59, o60, o61;
+    /*private Object
+            o62, o63, o64, o65, o66, o67, o68, o69,
+            o70, o71, o72, o73, o74, o75, o76, o77,
+            o78, o79, o80, o81, o82, o83, o84, o85;*/
 
     public Object get(int i) {
         return UNSAFE.getObject(this, OFFSET0 + i * POINTER_SIZE);
