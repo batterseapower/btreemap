@@ -77,7 +77,7 @@ modifyPom {
     project {
         name projectName
         description projectDescription
-        url 'http://batterseapower.github.io/btreemap/'
+        url 'https://github.com/batterseapower/btreemap'
 
         scm {
             url 'https://github.com/batterseapower/btreemap'
