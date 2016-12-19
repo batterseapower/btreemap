@@ -21,6 +21,6 @@ BTreeMapBenchmark.lowerKey  thrpt   20  3255788.782 ± 54390.949  ops/s
 BTreeMapBenchmark.put       thrpt   20  2542375.846 ± 38924.217  ops/s
 ```
 
-The source code lives at [GitHub](http://batterseapower.github.io/btreemap/). If you just want some JARs, check out [Maven Central](http://mvnrepository.com/artifact/uk.co.omega-prime/btreemap/).
+The source code lives at [GitHub](https://github.com/batterseapower/btreemap/). If you just want some JARs, check out [Maven Central](http://mvnrepository.com/artifact/uk.co.omega-prime/btreemap/).
 
 [![Build Status](https://travis-ci.org/batterseapower/btreemap.svg?branch=master)](https://travis-ci.org/batterseapower/btreemap)
