@@ -30,6 +30,29 @@ final class Node {
     //   Benchmark               Mode  Cnt        Score        Error  Units
     //   BTreeMapBenchmark.get  thrpt   40  3226633.131 ± 195725.464  ops/s
     //   BTreeMapBenchmark.put  thrpt   40  2561772.533 ±  31611.667  ops/s
+    //
+    // After some benchmarking I found that MIN_FANOUT = 16 is ~10% faster than MIN_FANOUT = 8:
+    //
+    // Min Fanout  Get Throughput (ops/sec)  99.9% CI
+    //  4          4216265.491                43520.265
+    //  5          4409875.947                91176.223
+    //  6          4573909.740                59522.347
+    //  7          4833759.229               102045.678
+    //  8          4919145.622                55779.310
+    //  9          4983996.875               116098.733
+    // 10          4727779.650               100560.027
+    // 11          4903133.847               180600.028
+    // 12          5245384.941                48753.377
+    // 13          5248156.906                83901.512
+    // 14          4953773.754                77839.875
+    // 15          5204504.977               174990.439
+    // 16          5305792.167               155854.297
+    // 17          5347054.930                47659.022
+    // 18          5415975.463                53697.353
+    // 19          5398902.319                47398.619
+    // 20          5374494.509                73927.102
+    // 21          5132999.986                40521.262
+    // 22          5161704.152                70647.085
     public static final int MIN_FANOUT = 16;
     public static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
 
