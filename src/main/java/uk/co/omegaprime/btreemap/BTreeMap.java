@@ -9,6 +9,8 @@ import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
 /**
  * A B-tree based {@link NavigableMap} implementation.
  * <p>
+ * To get started, call {@link #create()}.
+ * <p>
  * All values in the map are stored at leaf nodes, and all leaf nodes are at the same depth. This ensures that accesses
  * to the map via e.g. {@code get}, {@code put} and {@code remove} all take log(n) time. In contrast to a balanced binary
  * tree (like that used by {@link java.util.TreeMap}), each node may holds more than one key. This makes the datastructure

@@ -33,7 +33,8 @@ final class Node {
     public static final int MIN_FANOUT = 16;
     public static final int MAX_FANOUT = 2 * MIN_FANOUT - 1;
 
-    // Linear search seems about ~20% faster than binary (for MIN_FANOUT = 8 at least)
+    // Linear search seems about ~20% faster than binary (for MIN_FANOUT = 8 at least).
+    // It's 45% (!) faster for MIN_FANOUT = 16. Crazy.
     public static final boolean BINARY_SEARCH = false;
 
     private static final Unsafe UNSAFE;
