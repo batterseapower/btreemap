@@ -16,6 +16,7 @@ buildscript {
         classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
         classpath 'com.palantir:gradle-gitsemver:0.7.1'
+        classpath 'org.jtwig:jtwig-core:5.65'
     }
 }
 
@@ -44,6 +45,71 @@ def projectName = 'btreemap'
 def projectDescription = 'A simple and high-performance Java B-tree: drop-in replacement for java.util.TreeMap.'
 
 sourceCompatibility = 1.8
+
+import org.jtwig.environment.EnvironmentConfiguration
+import org.jtwig.environment.DefaultEnvironmentConfiguration
+import org.jtwig.JtwigTemplate
+import org.jtwig.JtwigModel
+
+class TypeProperties {
+    private final String name, primitive, boxed;
+    
+    private TypeProperties(String name, String primitive, String boxed) {
+        this.name = name
+        this.primitive = primitive;
+        this.boxed = boxed;
+    }
+    
+    String getName() { return name; }
+    String getPrimitive() { return primitive; }
+    String getBoxed() { return boxed; }
+
+    String toString() { return primitive; }
+
+    static final TypeProperties INT    = new TypeProperties("Int",    "int",    "Integer")
+    static final TypeProperties OBJECT = new TypeProperties("Object", "Object", "Object")
+    
+    static final List<TypeProperties> ALL = [INT, OBJECT]
+}
+
+task generateJava << {
+    delete fileTree(dir: "${buildDir}/generated-src")
+
+    EnvironmentConfiguration configuration = new DefaultEnvironmentConfiguration()
+
+    FileTree tree = fileTree(dir: 'src/main/java', include: '**/*.java.twig')
+    tree.each { File input ->
+        String relative = file('src/main/java').toPath().relativize(input.getParentFile().toPath()).toString()
+
+        for (k in TypeProperties.ALL) {
+            for (v in TypeProperties.ALL) {
+                JtwigModel model = JtwigModel.newModel()
+                        .with("K", k).with("V", v)
+                        .with("KV", k == TypeProperties.OBJECT && v == TypeProperties.OBJECT ? "" : k.name + v.name)
+
+                JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
+                String outputFilename = filenameTemplate.render(model) + '.java'
+
+                JtwigTemplate fileTemplate = JtwigTemplate.fileTemplate(input, configuration)
+                String output = fileTemplate.render(model)
+
+                File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
+                outputFile.getParentFile().mkdirs()
+
+                if (!java.nio.file.Files.notExists(outputFile.toPath())) {
+                    throw new IOException("Can't write to ${outputFile} twice")
+                }
+
+                outputFile.write(output)
+            }
+        }
+    }
+}
+
+compileJava {
+    dependsOn generateJava
+    source "${buildDir}/generated-src"
+}
 
 jar {
     baseName = projectName
