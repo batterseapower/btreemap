@@ -72,6 +72,18 @@ class TypeProperties {
     static final List<TypeProperties> ALL = [INT, OBJECT]
 }
 
+abstract class TypesProperties {
+    final JtwigModel model;
+
+    TypesProperties(JtwigModel model) {
+        this.model = model
+    }
+
+    // We have a few hacky extensions to the template language to let us write the templates without
+    // *totally* breaking intellij. We apply those in this method.
+    abstract String tweakTemplate(String line);
+}
+
 task generateJava << {
     delete fileTree(dir: "${buildDir}/generated-src")
 
@@ -81,14 +93,38 @@ task generateJava << {
     tree.each { File input ->
         String relative = file('src/main/java').toPath().relativize(input.getParentFile().toPath()).toString()
 
-        List<JtwigModel> models = []
+        List<TypesProperties> types = []
         if (input.getName().contains('{{KV_}}')) {
             for (k in TypeProperties.ALL) {
                 for (v in TypeProperties.ALL) {
-                    models.add(JtwigModel.newModel()
-                        .with("K", k).with("V", v)
-                        .with("K_", k == TypeProperties.OBJECT ? "" : k.name)
-                        .with("KV_", k == TypeProperties.OBJECT && v == TypeProperties.OBJECT ? "" : k.name + v.name))
+                    String classReplacement, tyParamReplacement
+                    if (k == TypeProperties.OBJECT && v == TypeProperties.OBJECT) {
+                        classReplacement = '$1'
+                        tyParamReplacement = '<K,V>'
+                    } else if (k == TypeProperties.OBJECT) {
+                        classReplacement = 'Object{{V.name}}$1'
+                        tyParamReplacement = '<K>'
+                    } else if (v == TypeProperties.OBJECT) {
+                        classReplacement = '{{K.name}}Object$1'
+                        tyParamReplacement = '<V>'
+                    } else {
+                        classReplacement = '{{K.name}}{{V.name}}$1'
+                        tyParamReplacement = ''
+                    }
+
+                    types.add(new TypesProperties(JtwigModel.newModel()
+                                .with("K", k).with("V", v)
+                                .with("K_", k == TypeProperties.OBJECT ? "" : k.name)
+                                .with("KV_", k == TypeProperties.OBJECT && v == TypeProperties.OBJECT ? "" : k.name + v.name)) {
+                        String tweakTemplate(String line) {
+                            return line.replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>[.]class', classReplacement + '.class')
+                                       .replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>', classReplacement + tyParamReplacement)
+                                       .replaceAll('<[$]K[$],[$]V[$]>', tyParamReplacement)
+                                       .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                                       .replace('$K$', '{{K}}')
+                                       .replace('$V$', '{{V}}')
+                        }
+                    })
                 }
             }
         } else if (input.getName().contains('{{K_}}')) {
@@ -97,27 +133,27 @@ task generateJava << {
                     continue
                 }
 
-                models.add(JtwigModel.newModel()
+                types.add(new TypesProperties(JtwigModel.newModel()
                         .with("K", k)
-                        .with("K_", k == TypeProperties.OBJECT ? "" : k.name))
+                        .with("K_", k == TypeProperties.OBJECT ? "" : k.name)) {
+                    @Override
+                    String tweakTemplate(String line) {
+                        return line.replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                                   .replace('$K$', '{{K}}')
+                    }
+                })
             }
         } else {
             throw new IllegalStateException("Found template ${input} that didn't have any obvious filename pattern")
         }
 
-        for (JtwigModel model : models) {
+        for (TypesProperties type : types) {
             JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
-            String outputFilename = filenameTemplate.render(model) + '.java'
+            String outputFilename = filenameTemplate.render(type.model) + '.java'
 
-            List<String> inputLines = input.readLines("UTF-8").collect {
-                // We have a few hacky extensions to the template language to let us write the templates without *totally* breaking intellij
-                it.replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>', '{{KV_}}$1')
-                  .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
-                  .replace('$K$', '{{K}}')
-                  .replace('$V$', '{{V}}')
-            }
+            List<String> inputLines = input.readLines("UTF-8").collect { type.tweakTemplate(it) }
             JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
-            String output = fileTemplate.render(model)
+            String output = fileTemplate.render(type.model)
 
             File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
             outputFile.getParentFile().mkdirs()

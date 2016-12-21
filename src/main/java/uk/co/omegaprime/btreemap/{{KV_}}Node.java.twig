@@ -182,7 +182,7 @@ final class Node<$K$,$V$> {
         return -(low + 1);  // key not found.
     }
 
-    public static void arraycopyKey(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
+    public static <$K$,$V$> void arraycopyKey(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
@@ -198,7 +198,7 @@ final class Node<$K$,$V$> {
         }
     }
 
-    public static void arraycopyValue(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
+    public static <$K$,$V$> void arraycopyValue(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
