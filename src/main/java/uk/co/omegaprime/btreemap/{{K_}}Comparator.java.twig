@@ -1,0 +1,28 @@
+package uk.co.omegaprime.btreemap;
+
+import java.util.Comparator;
+
+public interface Comparator<$K$> extends Comparator<{{K.boxed}}> {
+    int compare{{K.name}}($K$ x, $K$ y);
+
+    default int compare({{K.boxed}} x, {{K.boxed}} y) {
+        return x == null && y == null ?  0 :
+               x == null              ? -1 :
+               y == null              ?  1 :
+                                        compare{{K.name}}(x, y);
+    }
+
+    static Comparator<$K$> unbox(Comparator<{{K.boxed}}> that) {
+        return new Comparator<$K$>() {
+            @Override
+            public int compare{{K.name}}($K$ x, $K$ y) {
+                return that.compare(x, y);
+            }
+
+            @Override
+            public int compare({{K.boxed}} x, {{K.boxed}} y) {
+                return that.compare(x, y);
+            }
+        };
+    }
+}

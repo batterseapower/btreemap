@@ -81,33 +81,52 @@ task generateJava << {
     tree.each { File input ->
         String relative = file('src/main/java').toPath().relativize(input.getParentFile().toPath()).toString()
 
-        for (k in TypeProperties.ALL) {
-            for (v in TypeProperties.ALL) {
-                JtwigModel model = JtwigModel.newModel()
+        List<JtwigModel> models = []
+        if (input.getName().contains('{{KV_}}')) {
+            for (k in TypeProperties.ALL) {
+                for (v in TypeProperties.ALL) {
+                    models.add(JtwigModel.newModel()
                         .with("K", k).with("V", v)
-                        .with("KV", k == TypeProperties.OBJECT && v == TypeProperties.OBJECT ? "" : k.name + v.name)
-
-                JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
-                String outputFilename = filenameTemplate.render(model) + '.java'
-
-                List<String> inputLines = input.readLines("UTF-8").collect {
-                    // We have a few hacky extensions to the template language to let us write the templates without *totally* breaking intellij
-                    it.replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>', '{{KV}}$1')
-                      .replace('$K$', '{{K}}')
-                      .replace('$V$', '{{V}}')
+                        .with("K_", k == TypeProperties.OBJECT ? "" : k.name)
+                        .with("KV_", k == TypeProperties.OBJECT && v == TypeProperties.OBJECT ? "" : k.name + v.name))
                 }
-                JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
-                String output = fileTemplate.render(model)
-
-                File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
-                outputFile.getParentFile().mkdirs()
-
-                if (!java.nio.file.Files.notExists(outputFile.toPath())) {
-                    throw new IOException("Can't write to ${outputFile} twice")
-                }
-
-                outputFile.write(output)
             }
+        } else if (input.getName().contains('{{K_}}')) {
+            for (k in TypeProperties.ALL) {
+                if (k == TypeProperties.OBJECT && input.getName().equals("{{K_}}Comparator.java.twig")) {
+                    continue
+                }
+
+                models.add(JtwigModel.newModel()
+                        .with("K", k)
+                        .with("K_", k == TypeProperties.OBJECT ? "" : k.name))
+            }
+        } else {
+            throw new IllegalStateException("Found template ${input} that didn't have any obvious filename pattern")
+        }
+
+        for (JtwigModel model : models) {
+            JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
+            String outputFilename = filenameTemplate.render(model) + '.java'
+
+            List<String> inputLines = input.readLines("UTF-8").collect {
+                // We have a few hacky extensions to the template language to let us write the templates without *totally* breaking intellij
+                it.replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>', '{{KV_}}$1')
+                  .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                  .replace('$K$', '{{K}}')
+                  .replace('$V$', '{{V}}')
+            }
+            JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
+            String output = fileTemplate.render(model)
+
+            File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
+            outputFile.getParentFile().mkdirs()
+
+            if (!java.nio.file.Files.notExists(outputFile.toPath())) {
+                throw new IOException("Can't write to ${outputFile} twice")
+            }
+
+            outputFile.write(output)
         }
     }
 }

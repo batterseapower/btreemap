@@ -139,7 +139,7 @@ final class Node<$K$,$V$> {
         UNSAFE.put{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE, x);
     }
 
-    public int binarySearch(int fromIndex, int toIndex, $K$ key, Comparator c) {
+    public int binarySearch(int fromIndex, int toIndex, $K$ key, Comparator<$K$> c) {
         if (c == null) {
             return binarySearch(fromIndex, toIndex, key);
         }
@@ -149,8 +149,8 @@ final class Node<$K$,$V$> {
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            Object midVal = getKey(mid);
-            int cmp = c.compare(midVal, key);
+            $K$ midVal = getKey(mid);
+            int cmp = c.compare{{K_}}(midVal, key);
             if (cmp < 0)
                 low = mid + 1;
             else if (cmp > 0)
