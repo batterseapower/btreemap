@@ -61,7 +61,7 @@ final class Node {
     public static final boolean BINARY_SEARCH = false;
 
     private static final Unsafe UNSAFE;
-    private static final long OFFSET0;
+    private static final long KEY_OFFSET0, VALUE_OFFSET0;
     private static final int POINTER_SIZE;
 
     static {
@@ -91,7 +91,7 @@ final class Node {
         POINTER_SIZE = UNSAFE.arrayIndexScale(Object[].class);
 
         final Iterator<Map.Entry<Long, Field>> it = fieldByOffset.entrySet().iterator();
-        long lastOffset = OFFSET0 = it.next().getKey();
+        long lastOffset = KEY_OFFSET0 = it.next().getKey();
         while (it.hasNext()) {
             final Map.Entry<Long, Field> e = it.next();
             final long offset = e.getKey();
@@ -101,6 +101,8 @@ final class Node {
 
             lastOffset = offset;
         }
+
+        VALUE_OFFSET0 = KEY_OFFSET0 + MAX_FANOUT * POINTER_SIZE;
     }
 
     public int size;
@@ -119,12 +121,18 @@ final class Node {
             o70, o71, o72, o73, o74, o75, o76, o77,
             o78, o79, o80, o81, o82, o83, o84, o85;*/
 
-    public Object get(int i) {
-        return UNSAFE.getObject(this, OFFSET0 + i * POINTER_SIZE);
+    public Object getKey  (int i) {
+        return UNSAFE.getObject(this, KEY_OFFSET0   + i * POINTER_SIZE);
+    }
+    public Object getValue(int i) {
+        return UNSAFE.getObject(this, VALUE_OFFSET0 + i * POINTER_SIZE);
     }
 
-    public void set(int i, Object x) {
-        UNSAFE.putObject(this, OFFSET0 + i * POINTER_SIZE, x);
+    public void setKey  (int i, Object x) {
+        UNSAFE.putObject(this, KEY_OFFSET0   + i * POINTER_SIZE, x);
+    }
+    public void setValue(int i, Object x) {
+        UNSAFE.putObject(this, VALUE_OFFSET0 + i * POINTER_SIZE, x);
     }
 
     public int binarySearch(int fromIndex, int toIndex, Object key, Comparator c) {
@@ -137,7 +145,7 @@ final class Node {
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            Object midVal = get(mid);
+            Object midVal = getKey(mid);
             int cmp = c.compare(midVal, key);
             if (cmp < 0)
                 low = mid + 1;
@@ -156,7 +164,7 @@ final class Node {
         while (low <= high) {
             int mid = (low + high) >>> 1;
             @SuppressWarnings("rawtypes")
-            Comparable midVal = (Comparable)this.get(mid);
+            Comparable midVal = (Comparable)this.getKey(mid);
             @SuppressWarnings("unchecked")
             int cmp = midVal.compareTo(key);
 
@@ -170,18 +178,34 @@ final class Node {
         return -(low + 1);  // key not found.
     }
 
-    public static void arraycopy(Node src, int srcIndex, Node dst, int dstIndex, int size) {
-        if (size < 0 || srcIndex + size > MAX_FANOUT*2 || dstIndex + size > MAX_FANOUT*2) {
+    public static void arraycopyKey(Node src, int srcIndex, Node dst, int dstIndex, int size) {
+        if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
 
         if (dst == src && srcIndex < dstIndex) {
             for (int i = size - 1; i >= 0; i--) {
-                dst.set(dstIndex + i, src.get(srcIndex + i));
+                dst.setKey(dstIndex + i, src.getKey(srcIndex + i));
             }
         } else {
             for (int i = 0; i < size; i++) {
-                dst.set(dstIndex + i, src.get(srcIndex + i));
+                dst.setKey(dstIndex + i, src.getKey(srcIndex + i));
+            }
+        }
+    }
+
+    public static void arraycopyValue(Node src, int srcIndex, Node dst, int dstIndex, int size) {
+        if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+
+        if (dst == src && srcIndex < dstIndex) {
+            for (int i = size - 1; i >= 0; i--) {
+                dst.setValue(dstIndex + i, src.getValue(srcIndex + i));
+            }
+        } else {
+            for (int i = 0; i < size; i++) {
+                dst.setValue(dstIndex + i, src.getValue(srcIndex + i));
             }
         }
     }

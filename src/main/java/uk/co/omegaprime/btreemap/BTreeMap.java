@@ -84,7 +84,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 return keysValues.binarySearch(0, size, key, comparator);
             } else {
                 for (int i = 0; i < size; i++) {
-                    final Object checkKey = keysValues.get(i);
+                    final Object checkKey = keysValues.getKey(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
                     if (cmp == 0) {
                         return i;
@@ -97,20 +97,12 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             }
         }
 
-        public static int getKeyIndex(int index) {
-            return index;
-        }
-
         public static Object getKey(Node keysValues, int index) {
-            return keysValues.get(index);
-        }
-
-        public static int getValueIndex(int index) {
-            return MAX_FANOUT + index;
+            return keysValues.getKey(index);
         }
 
         public static Object getValue(Node keysValues, int index) {
-            return keysValues.get(getValueIndex(index));
+            return keysValues.getValue(index);
         }
 
         public static Object putOrDieIfFull(Node keysValues, Object key, Object value, Comparator comparator) {
@@ -132,25 +124,25 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 assert size < MAX_FANOUT;
 
                 final int insertionPoint = -(index + 1);
-                Node.arraycopy(keysValues,              insertionPoint, keysValues,              insertionPoint + 1, size - insertionPoint);
-                Node.arraycopy(keysValues, MAX_FANOUT + insertionPoint, keysValues, MAX_FANOUT + insertionPoint + 1, size - insertionPoint);
+                Node.arraycopyKey  (keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
+                Node.arraycopyValue(keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
                 keysValues.size = size + 1;
 
-                keysValues.set(insertionPoint, key);
+                keysValues.setKey(insertionPoint, key);
 
                 result = null;
                 index = insertionPoint;
             } else {
-                result = keysValues.get(MAX_FANOUT + index);
+                result = keysValues.getValue(index);
             }
 
-            keysValues.set(MAX_FANOUT + index, value);
+            keysValues.setValue(index, value);
             return result;
         }
 
         private static void copy(Node srcKeysValues, int srcIndex, Node dstKeysValues, int dstIndex, int size) {
-            Node.arraycopy(srcKeysValues, srcIndex,              dstKeysValues, dstIndex,              size);
-            Node.arraycopy(srcKeysValues, srcIndex + MAX_FANOUT, dstKeysValues, dstIndex + MAX_FANOUT, size);
+            Node.arraycopyKey  (srcKeysValues, srcIndex, dstKeysValues, dstIndex, size);
+            Node.arraycopyValue(srcKeysValues, srcIndex, dstKeysValues, dstIndex, size);
         }
 
         // This splits the leaf (of size MAX_FANOUT == 2 * MIN_FANOUT - 1) plus one extra item into two new
@@ -168,8 +160,8 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 copy(keysValues, insertionPoint,              l, insertionPoint + 1, MIN_FANOUT - insertionPoint - 1);
                 copy(keysValues, MIN_FANOUT - 1,              r, 0,                  MIN_FANOUT);
 
-                l.set(insertionPoint,              key);
-                l.set(insertionPoint + MAX_FANOUT, value);
+                l.setKey  (insertionPoint, key);
+                l.setValue(insertionPoint, value);
             } else {
                 insertionPoint -= MIN_FANOUT;
 
@@ -177,31 +169,23 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 copy(keysValues, MIN_FANOUT,                  r, 0,                  insertionPoint);
                 copy(keysValues, MIN_FANOUT + insertionPoint, r, insertionPoint + 1, MIN_FANOUT - insertionPoint - 1);
 
-                r.set(insertionPoint,              key);
-                r.set(insertionPoint + MAX_FANOUT, value);
+                r.setKey  (insertionPoint, key);
+                r.setValue(insertionPoint, value);
             }
 
-            return new BubbledInsertion(l, r, r.get(0));
+            return new BubbledInsertion(l, r, r.getKey(0));
         }
     }
 
     private static class Internal {
         private Internal() {}
 
-        private static int getKeyIndex(int index) {
-            return index;
-        }
-
         private static Object getKey(Node repr, int index) {
-            return repr.get(getKeyIndex(index));
-        }
-
-        private static int getNodeIndex(int index) {
-            return MAX_FANOUT - 1 + index;
+            return repr.getKey(index);
         }
 
         private static Node getNode(Node repr, int index) {
-            return (Node)repr.get(getNodeIndex(index));
+            return (Node)repr.getValue(index);
         }
 
         /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
@@ -215,7 +199,7 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                 // Tried not exiting early (improves branch prediction) but significantly worse.
                 int i;
                 for (i = 0; i < size - 1; i++) {
-                    final Object checkKey = repr.get(i);
+                    final Object checkKey = repr.getKey(i);
                     final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
                     if (cmp > 0) {
                         return i;
@@ -241,22 +225,22 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             //  Node 0 1A 1B 2
 
             final int size = repr.size++;
-            Node.arraycopy(repr,  getKeyIndex (index),     repr,  getKeyIndex (index + 1), size - index - 1);
-            Node.arraycopy(repr,  getNodeIndex(index + 1), repr,  getNodeIndex(index + 2), size - index - 1);
+            Node.arraycopyKey  (repr,  index,     repr,  index + 1, size - index - 1);
+            Node.arraycopyValue(repr,  index + 1, repr,  index + 2, size - index - 1);
 
-            repr.set(getKeyIndex (index)    , toBubble.separator);
-            repr.set(getNodeIndex(index)    , toBubble.leftObjects);
-            repr.set(getNodeIndex(index + 1), toBubble.rightObjects);
+            repr.setKey  (index    , toBubble.separator);
+            repr.setValue(index    , toBubble.leftObjects);
+            repr.setValue(index + 1, toBubble.rightObjects);
         }
 
         private static void deleteAtIndex(Node node, int index) {
             final int size = --node.size;
-            Node.arraycopy(node, getKeyIndex (index),     node, getKeyIndex (index - 1), size - index);
-            Node.arraycopy(node, getNodeIndex(index + 1), node, getNodeIndex(index),     size - index);
+            Node.arraycopyKey  (node, index,     node, index - 1, size - index);
+            Node.arraycopyValue(node, index + 1, node, index,     size - index);
 
             // Avoid memory leaks
-            node.set(getKeyIndex(size - 1), null);
-            node.set(getNodeIndex(size),    null);
+            node.setKey  (size - 1, null);
+            node.setValue(size,    null);
         }
 
         public static BubbledInsertion bubblePutAtIndex(Node repr, int nodeIndex, BubbledInsertion toBubble) {
@@ -280,45 +264,45 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
             if (nodeIndex == MIN_FANOUT - 1) {
                 separator = toBubble.separator;
 
-                Node.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0), MIN_FANOUT - 1);
-                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0), MIN_FANOUT - 1);
+                Node.arraycopyKey(repr, 0,              l, 0, MIN_FANOUT - 1);
+                Node.arraycopyKey(repr, MIN_FANOUT - 1, r, 0, MIN_FANOUT - 1);
 
-                Node.arraycopy(repr,  getNodeIndex(0),          l,      getNodeIndex(0), MIN_FANOUT - 1);
-                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT), r,      getNodeIndex(1), MIN_FANOUT - 1);
+                Node.arraycopyValue(repr,  0,          l,      0, MIN_FANOUT - 1);
+                Node.arraycopyValue(repr,  MIN_FANOUT, r,      1, MIN_FANOUT - 1);
 
-                l.set(getNodeIndex(MIN_FANOUT - 1), toBubble.leftObjects);
-                r.set(getNodeIndex(0),              toBubble.rightObjects);
+                l.setValue(MIN_FANOUT - 1, toBubble.leftObjects);
+                r.setValue(0,              toBubble.rightObjects);
             } else if (nodeIndex < MIN_FANOUT) {
                 separator = getKey(repr, MIN_FANOUT - 2);
 
-                Node.arraycopy(repr, getKeyIndex(0),              l, getKeyIndex(0),             nodeIndex);
-                Node.arraycopy(repr, getKeyIndex(nodeIndex),      l, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
-                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT - 1), r, getKeyIndex(0),             MIN_FANOUT - 1);
+                Node.arraycopyKey(repr, 0,              l, 0,             nodeIndex);
+                Node.arraycopyKey(repr, nodeIndex,      l, nodeIndex + 1, MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopyKey(repr, MIN_FANOUT - 1, r, 0,             MIN_FANOUT - 1);
 
-                Node.arraycopy(repr,  getNodeIndex(0),              l,      getNodeIndex(0),             nodeIndex);
-                Node.arraycopy(repr,  getNodeIndex(nodeIndex + 1),  l,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
-                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT - 1), r,      getNodeIndex(0),             MIN_FANOUT);
+                Node.arraycopyValue(repr,  0,              l,      0,             nodeIndex);
+                Node.arraycopyValue(repr,  nodeIndex + 1,  l,      nodeIndex + 2, MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopyValue(repr,  MIN_FANOUT - 1, r,      0,             MIN_FANOUT);
 
-                l.set(getKeyIndex(nodeIndex), toBubble.separator);
-                l.set(getNodeIndex(nodeIndex),     toBubble.leftObjects);
-                l.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
+                l.setKey  (nodeIndex,     toBubble.separator);
+                l.setValue(nodeIndex,     toBubble.leftObjects);
+                l.setValue(nodeIndex + 1, toBubble.rightObjects);
             } else {
                 nodeIndex -= MIN_FANOUT;
                 // i.e. 0 <= nodeIndex < MIN_FANOUT - 1
 
                 separator = getKey(repr, MIN_FANOUT - 1);
 
-                Node.arraycopy(repr, getKeyIndex(0),                      l, getKeyIndex(0),             MIN_FANOUT - 1);
-                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT),             r, getKeyIndex(0),             nodeIndex);
-                Node.arraycopy(repr, getKeyIndex(MIN_FANOUT + nodeIndex), r, getKeyIndex(nodeIndex + 1), MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopyKey(repr, 0,                      l, 0,             MIN_FANOUT - 1);
+                Node.arraycopyKey(repr, MIN_FANOUT,             r, 0,             nodeIndex);
+                Node.arraycopyKey(repr, MIN_FANOUT + nodeIndex, r, nodeIndex + 1, MIN_FANOUT - nodeIndex - 2);
 
-                Node.arraycopy(repr,  getNodeIndex(0),                          l,      getNodeIndex(0),             MIN_FANOUT);
-                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT),                 r,      getNodeIndex(0),             nodeIndex);
-                Node.arraycopy(repr,  getNodeIndex(MIN_FANOUT + nodeIndex + 1), r,      getNodeIndex(nodeIndex + 2), MIN_FANOUT - nodeIndex - 2);
+                Node.arraycopyValue(repr, 0,                          l, 0,             MIN_FANOUT);
+                Node.arraycopyValue(repr, MIN_FANOUT,                 r, 0,             nodeIndex);
+                Node.arraycopyValue(repr, MIN_FANOUT + nodeIndex + 1, r, nodeIndex + 2, MIN_FANOUT - nodeIndex - 2);
 
-                r.set(getKeyIndex(nodeIndex), toBubble.separator);
-                r.set(getNodeIndex(nodeIndex),     toBubble.leftObjects);
-                r.set(getNodeIndex(nodeIndex + 1), toBubble.rightObjects);
+                r.setKey  (nodeIndex,     toBubble.separator);
+                r.setValue(nodeIndex,     toBubble.leftObjects);
+                r.setValue(nodeIndex + 1, toBubble.rightObjects);
             }
 
             return new BubbledInsertion(l, r, separator);
@@ -490,9 +474,9 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         this.rootObjects = new Node();
         this.rootObjects.size = 2;
-        this.rootObjects.set(Internal.getKeyIndex (0), toBubble.separator);
-        this.rootObjects.set(Internal.getNodeIndex(0), toBubble.leftObjects);
-        this.rootObjects.set(Internal.getNodeIndex(1), toBubble.rightObjects);
+        this.rootObjects.setKey  (0, toBubble.separator);
+        this.rootObjects.setValue(0, toBubble.leftObjects);
+        this.rootObjects.setValue(1, toBubble.rightObjects);
 
         this.depth++;
         return null;
@@ -1424,12 +1408,12 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
                 size--;
                 node.size--;
-                Node.arraycopy(node, Leaf.getKeyIndex(index)   + 1, node, Leaf.getKeyIndex(index),   node.size - index);
-                Node.arraycopy(node, Leaf.getValueIndex(index) + 1, node, Leaf.getValueIndex(index), node.size - index);
+                Node.arraycopyKey  (node, index + 1, node, index, node.size - index);
+                Node.arraycopyValue(node, index + 1, node, index, node.size - index);
 
                 // Avoid memory leaks
-                node.set(Leaf.getKeyIndex(node.size),   null);
-                node.set(Leaf.getValueIndex(node.size), null);
+                node.setKey  (node.size, null);
+                node.setValue(node.size, null);
 
                 return result;
             }
@@ -1452,17 +1436,17 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                         final Object predLtKey;
                         if (depth == 1) {
                             // Children are leaves
-                            predLtKey = pred.get(Leaf.getKeyIndex(predSize));
-                            final Object predValue = pred.get(Leaf.getValueIndex(predSize));
+                            predLtKey = pred.getKey(predSize);
+                            final Object predValue = pred.getValue(predSize);
 
                             // Avoid memory leaks
-                            pred.set(Leaf.getKeyIndex(predSize),   null);
-                            pred.set(Leaf.getValueIndex(predSize), null);
+                            pred.setKey  (predSize, null);
+                            pred.setValue(predSize, null);
 
-                            Node.arraycopy(child, Leaf.getKeyIndex(0),   child, Leaf.getKeyIndex(1),   childSize);
-                            Node.arraycopy(child, Leaf.getValueIndex(0), child, Leaf.getValueIndex(1), childSize);
-                            child.set(Leaf.getKeyIndex(0),   predLtKey);
-                            child.set(Leaf.getValueIndex(0), predValue);
+                            Node.arraycopyKey  (child, 0, child, 1, childSize);
+                            Node.arraycopyValue(child, 0, child, 1, childSize);
+                            child.setKey  (0, predLtKey);
+                            child.setValue(0, predValue);
                         } else {
                             // Children are internal nodes
                             predLtKey = Internal.getKey(pred, predSize - 1);
@@ -1470,16 +1454,16 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                             final Node predNode = Internal.getNode(pred, predSize);
 
                             // Avoid memory leaks
-                            pred.set(Internal.getKeyIndex(predSize - 1), null);
-                            pred.set(Internal.getNodeIndex(predSize),    null);
+                            pred.setKey  (predSize - 1, null);
+                            pred.setValue(predSize,     null);
 
-                            Node.arraycopy(child, Internal.getKeyIndex(0),  child, Internal.getKeyIndex(1),  childSize - 1);
-                            Node.arraycopy(child, Internal.getNodeIndex(0), child, Internal.getNodeIndex(1), childSize);
-                            child.set(Internal.getKeyIndex(0),  predKey);
-                            child.set(Internal.getNodeIndex(0), predNode);
+                            Node.arraycopyKey  (child, 0, child, 1,  childSize - 1);
+                            Node.arraycopyValue(child, 0, child, 1, childSize);
+                            child.setKey  (0, predKey);
+                            child.setValue(0, predNode);
                         }
 
-                        node.set(Internal.getKeyIndex(index - 1), predLtKey);
+                        node.setKey(index - 1, predLtKey);
                     } else {
                         // Can merge with predecessor
                         final Object middleKey = Internal.getKey(node, index - 1);
@@ -1498,36 +1482,36 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
                         if (depth == 1) {
                             // Children are leaves
                             succGteKey = Leaf.getKey(succ, 1);
-                            final Object succKey = succ.get(Leaf.getKeyIndex(0));
-                            final Object succValue = succ.get(Leaf.getValueIndex(0));
+                            final Object succKey   = succ.getKey  (0);
+                            final Object succValue = succ.getValue(0);
 
-                            Node.arraycopy(succ, Leaf.getKeyIndex(1),   succ, Leaf.getKeyIndex(0),   succSize);
-                            Node.arraycopy(succ, Leaf.getValueIndex(1), succ, Leaf.getValueIndex(0), succSize);
+                            Node.arraycopyKey  (succ, 1, succ, 0,   succSize);
+                            Node.arraycopyValue(succ, 1, succ, 0, succSize);
 
                             // Avoid memory leaks
-                            succ.set(Leaf.getKeyIndex(succSize),   null);
-                            succ.set(Leaf.getValueIndex(succSize), null);
+                            succ.setKey  (succSize, null);
+                            succ.setValue(succSize, null);
 
-                            child.set(Leaf.getKeyIndex(childSize),   succKey);
-                            child.set(Leaf.getValueIndex(childSize), succValue);
+                            child.setKey  (childSize, succKey);
+                            child.setValue(childSize, succValue);
                         } else {
                             // Children are internal nodes
                             succGteKey = Internal.getKey(succ, 0);
                             final Object succKey = Internal.getKey(node, index);
                             final Node succNode = Internal.getNode(succ, 0);
 
-                            Node.arraycopy(succ, Internal.getKeyIndex(1),  succ, Internal.getKeyIndex(0),  succSize - 1);
-                            Node.arraycopy(succ, Internal.getNodeIndex(1), succ, Internal.getNodeIndex(0), succSize);
+                            Node.arraycopyKey  (succ, 1, succ, 0,  succSize - 1);
+                            Node.arraycopyValue(succ, 1, succ, 0, succSize);
 
                             // Avoid memory leaks
-                            succ.set(Internal.getKeyIndex(succSize - 1), null);
-                            succ.set(Internal.getNodeIndex(succSize),    null);
+                            succ.setKey  (succSize - 1, null);
+                            succ.setValue(succSize,     null);
 
-                            child.set(Internal.getKeyIndex(childSize),  succKey);
-                            child.set(Internal.getNodeIndex(childSize), succNode);
+                            child.setKey  (childSize, succKey);
+                            child.setValue(childSize, succNode);
                         }
 
-                        node.set(Internal.getKeyIndex(index), succGteKey);
+                        node.setKey(index, succGteKey);
                     } else {
                         // Can merge with successor
                         final Object middleKey = Internal.getKey(node, index);
@@ -1550,13 +1534,13 @@ public class BTreeMap<K, V> implements NavigableMap<K, V> {
 
         if (depth == 0) {
             // Children are leaves
-            Node.arraycopy(succ, Leaf.getKeyIndex(0),   pred, Leaf.getKeyIndex(predSize),   succSize);
-            Node.arraycopy(succ, Leaf.getValueIndex(0), pred, Leaf.getValueIndex(predSize), succSize);
+            Node.arraycopyKey  (succ, 0, pred, predSize, succSize);
+            Node.arraycopyValue(succ, 0, pred, predSize, succSize);
         } else {
             // Children are internal nodes
-            pred.set(Internal.getKeyIndex(predSize - 1), middleKey);
-            Node.arraycopy(succ, Internal.getKeyIndex(0),  pred, Internal.getKeyIndex(predSize),  succSize - 1);
-            Node.arraycopy(succ, Internal.getNodeIndex(0), pred, Internal.getNodeIndex(predSize), succSize);
+            pred.setKey(predSize - 1, middleKey);
+            Node.arraycopyKey  (succ, 0, pred, predSize, succSize - 1);
+            Node.arraycopyValue(succ, 0, pred, predSize, succSize);
         }
     }
 }
