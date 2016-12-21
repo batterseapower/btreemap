@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import java.util.*;
 
 // This is basically a fixed size Object[] with a "int" size field
-final class {{KV}}Node {
+final class Node<$K$,$V$> {
     // We're going to do a generalized (2, 3) tree i.e. each internal node will have between m and (2m - 1) children inclusive, for m >= 2
     //
     // What's a sensible value for m? It would be good if each array we allocate fits within one cache line. On Skylake,
@@ -67,7 +67,7 @@ final class {{KV}}Node {
 
     private static long verifyInstanceFieldsContiguous(String prefix, long stride) {
         final TreeMap<Long, Field> fieldByOffset = new TreeMap<>();
-        for (Field f : Node.class.getDeclaredFields()) {
+        for (Field f : Node<$K$,$V$>.class.getDeclaredFields()) {
             if (f.getName().matches(Pattern.quote(prefix) + "[0-9]+") && (f.getModifiers() & Modifier.STATIC) == 0) {
                 final long offset = UNSAFE.objectFieldOffset(f);
                 if (fieldByOffset.put(offset, f) != null) {
@@ -106,40 +106,40 @@ final class {{KV}}Node {
         }
 
         // Object pointer size might differ from Unsafe.ADDRESS_SIZE if compressed OOPs are in use
-        KEY_SIZE   = UNSAFE.arrayIndexScale({{K}}[].class);
-        VALUE_SIZE = UNSAFE.arrayIndexScale({{V}}[].class);
+        KEY_SIZE   = UNSAFE.arrayIndexScale($K$[].class);
+        VALUE_SIZE = UNSAFE.arrayIndexScale($V$[].class);
 
         KEY_OFFSET0   = verifyInstanceFieldsContiguous("k", KEY_SIZE);
         VALUE_OFFSET0 = verifyInstanceFieldsContiguous("v", VALUE_SIZE);
     }
 
     public int size;
-    private {{K}}
+    private $K$
             k00, k01, k02, k03, k04, k05, k06, k07,
             k08, k09, k10, k11, k12, k13, k14, k15,
             k16, k17, k18, k19, k20, k21, k22, k23,
             k24, k25, k26, k27, k28, k29, k30;
-    private {{V}}
+    private $V$
             v00, v01, v02, v03, v04, v05, v06, v07,
             v08, v09, v10, v11, v12, v13, v14, v15,
             v16, v17, v18, v19, v20, v21, v22, v23,
             v24, v25, v26, v27, v28, v29, v30;
 
-    public {{K}} getKey  (int i) {
+    public $K$ getKey  (int i) {
         return UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
     }
-    public {{V}} getValue(int i) {
+    public $V$ getValue(int i) {
         return UNSAFE.get{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE);
     }
 
-    public void setKey  (int i, {{K}} x) {
+    public void setKey  (int i, $K$ x) {
         UNSAFE.put{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE, x);
     }
-    public void setValue(int i, {{V}} x) {
+    public void setValue(int i, $V$ x) {
         UNSAFE.put{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE, x);
     }
 
-    public int binarySearch(int fromIndex, int toIndex, {{K}} key, Comparator c) {
+    public int binarySearch(int fromIndex, int toIndex, $K$ key, Comparator c) {
         if (c == null) {
             return binarySearch(fromIndex, toIndex, key);
         }
@@ -161,7 +161,7 @@ final class {{KV}}Node {
         return -(low + 1);  // key not found.
     }
 
-    public int binarySearch(int fromIndex, int toIndex, {{K}} key) {
+    public int binarySearch(int fromIndex, int toIndex, $K$ key) {
         int low = fromIndex;
         int high = toIndex - 1;
 
@@ -182,7 +182,7 @@ final class {{KV}}Node {
         return -(low + 1);  // key not found.
     }
 
-    public static void arraycopyKey({{KV}}Node src, int srcIndex, {{KV}}Node dst, int dstIndex, int size) {
+    public static void arraycopyKey(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
@@ -198,7 +198,7 @@ final class {{KV}}Node {
         }
     }
 
-    public static void arraycopyValue({{KV}}Node src, int srcIndex, {{KV}}Node dst, int dstIndex, int size) {
+    public static void arraycopyValue(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }

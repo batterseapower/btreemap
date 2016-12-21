@@ -90,7 +90,13 @@ task generateJava << {
                 JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
                 String outputFilename = filenameTemplate.render(model) + '.java'
 
-                JtwigTemplate fileTemplate = JtwigTemplate.fileTemplate(input, configuration)
+                List<String> inputLines = input.readLines("UTF-8").collect {
+                    // We have a few hacky extensions to the template language to let us write the templates without *totally* breaking intellij
+                    it.replaceAll('([A-Za-z]+)<[$]K[$],[$]V[$]>', '{{KV}}$1')
+                      .replace('$K$', '{{K}}')
+                      .replace('$V$', '{{V}}')
+                }
+                JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
                 String output = fileTemplate.render(model)
 
                 File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
