@@ -25,11 +25,11 @@ class Iterables {
         return sb.toString();
     }
 
-    public static <K, V> String toMapString(Iterable<Map.Entry<K, V>> xs) {
+    public static <K, V> String toMapString(Iterable<? extends Map.Entry<K, V>> xs) {
         final StringBuilder sb = new StringBuilder();
         sb.append('{');
 
-        final Iterator<Map.Entry<K, V>> it = xs.iterator();
+        final Iterator<? extends Map.Entry<K, V>> it = xs.iterator();
         if (it.hasNext()) {
             {
                 final Map.Entry e = it.next();

@@ -178,6 +178,7 @@ task generateJava << {
                                        .replaceAll('<[$]K[$]>', kTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
                                        .replace('@Erased $K$', '{{K.erased}}')
+                                       .replace('@Erased $V$', '{{V.erased}}')
                                        .replace('@Boxed $K$', '{{K.boxed}}')
                                        .replace('@Boxed $V$', '{{V.boxed}}')
                                        .replace('$K$', '{{K.unboxed}}')

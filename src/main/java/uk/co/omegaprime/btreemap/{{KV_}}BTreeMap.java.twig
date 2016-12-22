@@ -573,60 +573,157 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     {% endif %}
 
 
+    {% if K.isObject() and V.isObject() %}
     @Override
-    public $V$ put($K$ key, $V$ value) {
-        if (rootObjects == null) {
-            rootObjects = new Node();
-            final Object result = Leaf.putOrDieIfFull(rootObjects, key, value, comparator);
-            assert result == null;
-
-            this.size = 1;
+    public @Boxed $V$ put(@Boxed $K$ key, @Boxed $V$ value) {
+    {% else %}
+    public @Boxed $V$ put($K$ key, $V$ value) {
+    {% endif %}
+        if (tryPutIntoEmptyMap(key, value)) {
             return null;
         }
 
-        final Object[] resultBox = new Object[1];
-        final BubbledInsertion toBubble = putInternal(key, value, rootObjects, this.depth, resultBox);
+        final @Boxed $V$[] resultBox = new @Boxed $V$[1];
+        final BubbledInsertion<$K$> toBubble = putInternal(key, value, rootObjects, this.depth, resultBox);
         if (toBubble == null) {
             return ($V$)resultBox[0];
+        } else {
+            finishBubbling(toBubble);
+            return null;
         }
-
-        this.rootObjects = new Node();
-        this.rootObjects.size = 2;
-        this.rootObjects.setKey  (0, toBubble.separator);
-        this.rootObjects.setValue(0, toBubble.leftObjects);
-        this.rootObjects.setValue(1, toBubble.rightObjects);
-
-        this.depth++;
-        return null;
     }
 
-    private BubbledInsertion putInternal($K$ key, $V$ value, Node nextObjects, int depth, Object[] resultBox) {
-        final int size = nextObjects.size;
+    {% if V.isPrimitive() %}
+    public $V$ put{{V.name}}($K$ key, $V$ value) {
+        if (tryPutIntoEmptyMap(key, value)) {
+            return {{V.dfault}};
+        }
+
+        final $V$[] resultBox = new $V$[1];
+        resultBox[0] = {{V.dfault}};
+        final BubbledInsertion<$K$> toBubble = putInternal{{V.name}}(key, value, rootObjects, this.depth, resultBox);
+        if (toBubble == null) {
+            return resultBox[0];
+        } else {
+            finishBubbling(toBubble);
+            return {{V.dfault}};
+        }
+    }
+    {% endif %}
+
+    {% if K.isPrimitive() %}
+    {% if V.isObject() %}@Override{% endif %}
+    public @Boxed $V$ put(@Boxed $K$ key, $V$ value) {
+        return put(($K$)key, value);
+    }
+    {% endif %}
+
+    {% if V.isPrimitive() %}
+    {% if K.isObject() %}@Override{% endif %}
+    public @Boxed $V$ put($K$ key, @Boxed $V$ value) {
+        return put(key, ($V$)value);
+    }
+
+    public $V$ put{{V.name}}($K$ key, @Boxed $V$ value) {
+        return put{{V.name}}(key, ($V$)value);
+    }
+    {% endif %}
+
+    {% if K.isPrimitive() and V.isPrimitive() %}
+    @Override
+    public @Boxed $V$ put(@Boxed $K$ key, @Boxed $V$ value) {
+        return put(($K$)key, ($V$)value);
+    }
+
+    public $V$ put{{V.name}}(@Boxed $K$ key, @Boxed $V$ value) {
+        return put{{V.name}}(($K$)key, ($V$)value);
+    }
+
+    public $V$ put{{V.name}}(@Boxed $K$ key, $V$ value) {
+        return put{{V.name}}(($K$)key, value);
+    }
+    {% endif %}
+
+    private boolean tryPutIntoEmptyMap($K$ key, $V$ value) {
+        if (rootObjects != null) {
+            return false;
+        } else {
+            final Node<$K$, $V$> leaf = new Node<$K$, $V$>();
+            final Object result = Leaf.putOrDieIfFull(leaf, key, value, comparator);
+            assert result == null;
+
+            rootObjects = leaf;
+            this.size = 1;
+            return true;
+        }
+    }
+
+    private void finishBubbling(BubbledInsertion<$K$> toBubble) {
+        final Node<$K$, Object> internal = new Node<$K$, Object>();
+        internal.size = 2;
+        internal.setKey  (0, toBubble.separator);
+        internal.setValue(0, toBubble.leftObjects);
+        internal.setValue(1, toBubble.rightObjects);
+
+        this.rootObjects = internal;
+        this.depth++;
+    }
+
+    private BubbledInsertion<$K$> putInternal($K$ key, $V$ value, Object nextObjects, int depth, @Boxed $V$[] resultBox) {
         if (depth == 0) {
-            final int nodeIndex = Leaf.find(nextObjects, key, comparator);
+            final Node<$K$, $V$> leaf = (Node<$K$, $V$>)nextObjects;
+            final int nodeIndex = Leaf.find(leaf, key, comparator);
             if (nodeIndex < 0) this.size++;
 
-            if (Leaf.canPutAtIndex(size, nodeIndex)) {
-                resultBox[0] = Leaf.putAtIndex(nextObjects, nodeIndex, key, value);
+            if (Leaf.canPutAtIndex(leaf.size, nodeIndex)) {
+                resultBox[0] = Leaf.putAtIndex(leaf, nodeIndex, key, value);
                 return null;
             }
 
-            return Leaf.bubblePutAtIndex(nextObjects, nodeIndex, key, value);
+            return Leaf.bubblePutAtIndex(leaf, nodeIndex, key, value);
         } else {
-            final int nodeIndex = Internal.find(nextObjects, key, comparator);
+            final Node<$K$, Object> internal = (Node<$K$, Object>)nextObjects;
+            final int nodeIndex = Internal.find(internal, key, comparator);
 
-            final BubbledInsertion toBubble = putInternal(key, value, Internal.getNode(nextObjects, nodeIndex), depth - 1, resultBox);
-            if (toBubble == null) {
-                return null;
-            }
-
-            if (Internal.canPutAtIndex(size)) {
-                Internal.putAtIndex(nextObjects, nodeIndex, toBubble);
-                return null;
-            }
-
-            return Internal.bubblePutAtIndex(nextObjects, nodeIndex, toBubble);
+            final BubbledInsertion<$K$> toBubble = putInternal(key, value, Internal.getNode(internal, nodeIndex), depth - 1, resultBox);
+            return putInternalFinishInternal(internal, nodeIndex, toBubble);
         }
+    }
+
+    {% if V.isPrimitive() %}
+    private BubbledInsertion<$K$> putInternal{{V.name}}($K$ key, $V$ value, Object nextObjects, int depth, $V$[] resultBox) {
+        if (depth == 0) {
+            final Node<$K$, $V$> leaf = (Node<$K$, $V$>)nextObjects;
+            final int nodeIndex = Leaf.find(leaf, key, comparator);
+            if (nodeIndex < 0) this.size++;
+
+            if (Leaf.canPutAtIndex(leaf.size, nodeIndex)) {
+                resultBox[0] = Leaf.putAtIndex(leaf, nodeIndex, key, value);
+                return null;
+            }
+
+            return Leaf.bubblePutAtIndex(leaf, nodeIndex, key, value);
+        } else {
+            final Node<$K$, Object> internal = (Node<$K$, Object>)nextObjects;
+            final int nodeIndex = Internal.find(internal, key, comparator);
+
+            final BubbledInsertion<$K$> toBubble = putInternal{{V.name}}(key, value, Internal.getNode(internal, nodeIndex), depth - 1, resultBox);
+            return putInternalFinishInternal(internal, nodeIndex, toBubble);
+        }
+    }
+    {% endif %}
+
+    private BubbledInsertion<$K$> putInternalFinishInternal(Node<$K$, Object> internal, int nodeIndex, BubbledInsertion<$K$> toBubble) {
+        if (toBubble == null) {
+            return null;
+        }
+
+        if (Internal.canPutAtIndex(internal.size)) {
+            Internal.putAtIndex(internal, nodeIndex, toBubble);
+            return null;
+        }
+
+        return Internal.bubblePutAtIndex(internal, nodeIndex, toBubble);
     }
 
     @Override
@@ -662,22 +759,24 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         return Iterables.hashCode(entrySet());
     }
 
-    private static String toStringInternal(Node repr, int depth) {
+    private static <$K$, $V$> String toStringInternal(Object repr, int depth) {
         if (depth == 0) {
+            final Node<$K$, $V$> leaf = (Node<$K$, $V$>)repr;
             final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < repr.size; i++) {
+            for (int i = 0; i < leaf.size; i++) {
                 if (sb.length() != 0) sb.append(", ");
-                sb.append(Leaf.getKey(repr, i)).append(": ").append(Leaf.getValue(repr, i));
+                sb.append(Leaf.getKey(leaf, i)).append(": ").append(Leaf.getValue(leaf, i));
             }
 
             return sb.toString();
         } else {
+            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
             final StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < repr.size; i++) {
+            for (int i = 0; i < internal.size; i++) {
                 if (sb.length() != 0) {
-                    sb.append(" |").append(Internal.getKey(repr, i - 1)).append("| ");
+                    sb.append(" |").append(Internal.getKey(internal, i - 1)).append("| ");
                 }
-                final Node node = Internal.getNode(repr, i);
+                final Object node = Internal.getNode(internal, i);
                 sb.append("{").append(toStringInternal(node, depth - 1)).append("}");
             }
 
@@ -685,34 +784,78 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         }
     }
 
+
+    {% if K.isPrimitive() %}
+    static <K, V> $K$ getEntryKey{{K.name}}(Entry<K, V> e) {
+        return e == null ? {{K.dfault}} : ($K$)e.getKey();
+    }
+    {% endif %}
+
     static <K, V> K getEntryKey(Entry<K, V> e) {
         return e == null ? null : e.getKey();
     }
 
+
+    {% for keyMethod in ["lower", "higher", "floor", "ceiling"] %}
+
+    {% if K.isPrimitive() %}
     @Override
-    public Entry<$K$, $V$> lowerEntry($K$ key) {
+    public @Boxed $K$ {{keyMethod}}Key(@Boxed $K$ key) {
+        return {{keyMethod}}Key(($K$)key);
+    }
+
+    public $K$ {{keyMethod}}Key{{K.name}}(@Boxed $K$ key) {
+        return {{keyMethod}}Key{{K.name}}(($K$)key);
+    }
+
+    public $K$ {{keyMethod}}Key{{K.name}}($K$ key) {
+        return getEntryKey{{K.name}}({{keyMethod}}Entry(key));
+    }
+    {% else %}
+    @Override
+    {% endif %}
+    public @Boxed $K$ {{keyMethod}}Key($K$ key) {
+        return getEntryKey({{keyMethod}}Entry(key));
+    }
+
+    {% endfor %}
+
+
+    {% if K.isPrimitive() %}
+    @Override
+    public Entry<@Boxed $K$, @Boxed $V$> lowerEntry(@Boxed $K$ key) {
+        return lowerEntry(($K$)key);
+    }
+
+    public Entry<@Boxed $K$, @Boxed $V$> lowerEntry($K$ key) {
+    {% else %}
+    @Override
+    public Entry<@Boxed $K$, @Boxed $V$> lowerEntry($K$ key) {
+    {% endif %}
         if (rootObjects == null) {
             return null;
         }
 
         final int depth = this.depth;
 
-        Node backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
-        int backtrackIndex = -1;     // Index of that prior child
-        int backtrackDepth = -1;     // Depth of that internal node
+        Node<$K$, Object> backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
+        int backtrackIndex = -1;                  // Index of that prior child
+        int backtrackDepth = -1;                  // Depth of that internal node
 
-        Node repr = rootObjects;
+        Object repr = rootObjects;
         for (int i = 0; i < depth; i++) {
-            final int index = Internal.find(repr, key, comparator);
+            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final int index = Internal.find(internal, key, comparator);
             if (index > 0) {
-                backtrackParent = repr;
+                backtrackParent = internal;
                 backtrackIndex = index - 1;
                 backtrackDepth = i;
             }
-            repr = Internal.getNode(repr, index);
+            repr = Internal.getNode(internal, index);
         }
 
-        final int leafIndex = Leaf.find(repr, key, comparator);
+        Node<$K$, $V$> leaf = (Node<$K$, $V$>)repr;
+        final int leafIndex = Leaf.find(leaf, key, comparator);
         final int insertionPoint = leafIndex >= 0 ? leafIndex : -(leafIndex + 1);
         final int returnIndex;
         if (insertionPoint > 0) {
@@ -727,26 +870,32 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             repr = backtrackParent;
             int index = backtrackIndex;
             for (int i = backtrackDepth; i < depth; i++) {
-                repr = Internal.getNode(repr, index);
+                final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                repr = Internal.getNode(internal, index);
                 index = repr.size - 1;
             }
 
             returnIndex = index;
+            leaf = (Node<$K$, $V$>)repr;
         }
 
         return new AbstractMap.SimpleImmutableEntry<>(
-            ($K$)Leaf.getKey  (repr, returnIndex),
-            ($V$)Leaf.getValue(repr, returnIndex)
+            Leaf.getKey  (leaf, returnIndex),
+            Leaf.getValue(leaf, returnIndex)
         );
     }
 
+    {% if K.isPrimitive() %}
     @Override
-    public $K$ lowerKey($K$ key) {
-        return getEntryKey(lowerEntry(key));
+    public Entry<@Boxed $K$, @Boxed $V$> floorEntry(@Boxed $K$ key) {
+        return floorEntry(($K$)key);
     }
 
+    public Entry<@Boxed $K$, @Boxed $V$> floorEntry($K$ key) {
+    {% else %}
     @Override
-    public Entry<$K$, $V$> floorEntry($K$ key) {
+    public Entry<@Boxed $K$, @Boxed $V$> floorEntry($K$ key) {
+    {% endif %}
         if (rootObjects == null) {
             return null;
         }
@@ -800,13 +949,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         );
     }
 
+    {% if K.isPrimitive() %}
     @Override
-    public $K$ floorKey($K$ key) {
-        return getEntryKey(floorEntry(key));
+    public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry(@Boxed $K$ key) {
+        return ceilingEntry(($K$)key);
     }
 
+    public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry($K$ key) {
+    {% else %}
     @Override
-    public Entry<$K$, $V$> ceilingEntry($K$ key) {
+    public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry($K$ key) {
+    {% endif %}
         if (rootObjects == null) {
             return null;
         }
@@ -860,13 +1013,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         );
     }
 
+    {% if K.isPrimitive() %}
     @Override
-    public $K$ ceilingKey($K$ key) {
-        return getEntryKey(ceilingEntry(key));
+    public Entry<@Boxed $K$, @Boxed $V$> higherEntry(@Boxed $K$ key) {
+        return higherEntry(($K$)key);
     }
 
+    public Entry<@Boxed $K$, @Boxed $V$> higherEntry($K$ key) {
+    {% else %}
     @Override
-    public Entry<$K$, $V$> higherEntry($K$ key) {
+    public Entry<@Boxed $K$, @Boxed $V$> higherEntry($K$ key) {
+    {% endif %}
         if (rootObjects == null) {
             return null;
         }
@@ -914,11 +1071,6 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             ($K$)Leaf.getKey  (repr, returnIndex),
             ($V$)Leaf.getValue(repr, returnIndex)
         );
-    }
-
-    @Override
-    public $K$ higherKey($K$ key) {
-        return getEntryKey(higherEntry(key));
     }
 
     @Override
