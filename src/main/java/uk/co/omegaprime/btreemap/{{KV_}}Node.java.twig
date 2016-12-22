@@ -106,8 +106,16 @@ final class Node<$K$,$V$> {
         }
 
         // Object pointer size might differ from Unsafe.ADDRESS_SIZE if compressed OOPs are in use
+        {% if K.isObject %}
+        KEY_SIZE   = UNSAFE.arrayIndexScale(Object[].class);
+        {% else %}
         KEY_SIZE   = UNSAFE.arrayIndexScale($K$[].class);
+        {% endif %}
+        {% if K.isObject %}
+        VALUE_SIZE = UNSAFE.arrayIndexScale(Object[].class);
+        {% else %}
         VALUE_SIZE = UNSAFE.arrayIndexScale($V$[].class);
+        {% endif %}
 
         KEY_OFFSET0   = verifyInstanceFieldsContiguous("k", KEY_SIZE);
         VALUE_OFFSET0 = verifyInstanceFieldsContiguous("v", VALUE_SIZE);
@@ -126,10 +134,10 @@ final class Node<$K$,$V$> {
             v24, v25, v26, v27, v28, v29, v30;
 
     public $K$ getKey  (int i) {
-        return UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
+        return ({{K.boxed}})UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
     }
     public $V$ getValue(int i) {
-        return UNSAFE.get{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE);
+        return ({{V.boxed}})UNSAFE.get{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE);
     }
 
     public void setKey  (int i, $K$ x) {
@@ -139,7 +147,7 @@ final class Node<$K$,$V$> {
         UNSAFE.put{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE, x);
     }
 
-    public int binarySearch(int fromIndex, int toIndex, $K$ key, Comparator<$K$> c) {
+    public int binarySearch(int fromIndex, int toIndex, @Erased $K$ key, Comparator<$K$> c) {
         if (c == null) {
             return binarySearch(fromIndex, toIndex, key);
         }
@@ -182,7 +190,7 @@ final class Node<$K$,$V$> {
         return -(low + 1);  // key not found.
     }
 
-    public static <$K$,$V$> void arraycopyKey(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
+    public static <$K$,$V$> void arraycopyKey(Node<$K$,$V$> src, int srcIndex, Node<? super $K$,?> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
@@ -198,7 +206,7 @@ final class Node<$K$,$V$> {
         }
     }
 
-    public static <$K$,$V$> void arraycopyValue(Node<$K$,$V$> src, int srcIndex, Node<$K$,$V$> dst, int dstIndex, int size) {
+    public static <$K$,$V$> void arraycopyValue(Node<$K$,$V$> src, int srcIndex, Node<?,? super $V$> dst, int dstIndex, int size) {
         if (size < 0 || srcIndex + size > MAX_FANOUT || dstIndex + size > MAX_FANOUT) {
             throw new ArrayIndexOutOfBoundsException();
         }
