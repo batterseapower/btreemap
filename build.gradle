@@ -52,13 +52,14 @@ import org.jtwig.JtwigTemplate
 import org.jtwig.JtwigModel
 
 class TypeProperties {
-    private final String name, primitive, boxed, erased, dfault;
+    private final String name, primitive, boxed, erased, erasedBoxed, dfault;
     
-    private TypeProperties(String name, String primitive, String boxed, String erased, String dfault) {
+    private TypeProperties(String name, String primitive, String boxed, String erased, String erasedBoxed, String dfault) {
         this.name = name
         this.primitive = primitive;
         this.boxed = boxed;
         this.erased = erased;
+        this.erasedBoxed = erasedBoxed;
         this.dfault = dfault;
     }
     
@@ -67,6 +68,7 @@ class TypeProperties {
     String getBoxed() { return boxed; }
     String getUnboxed() { return primitive == null ? boxed : primitive; }
     String getErased() { return erased; }
+    String getErasedBoxed() { return erasedBoxed; }
     String getDfault() { return dfault; }
 
     boolean isPrimitive() { return primitive != null; }
@@ -74,10 +76,10 @@ class TypeProperties {
 
     String toString() { return primitive; }
 
-    static final TypeProperties INT    = new TypeProperties("Int", "int", "Integer", "int", "Integer.MIN_VALUE")
+    static final TypeProperties INT    = new TypeProperties("Int", "int", "Integer", "int", "Integer", "Integer.MIN_VALUE")
 
     static TypeProperties object(String tyParam) {
-        return new TypeProperties("Object", null, tyParam, "Object", "null");
+        return new TypeProperties("Object", null, tyParam, "Object", "Object", "null");
     }
     
     static final List<TypeProperties> PRIMITIVE = [INT]
@@ -177,6 +179,7 @@ task generateJava << {
                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', kPrefix + '$1' + kTyReplacement)
                                        .replaceAll('<[$]K[$]>', kTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                                       .replace('@Erased @Boxed $V$', '{{V.erasedBoxed}}')
                                        .replace('@Erased $K$', '{{K.erased}}')
                                        .replace('@Erased $V$', '{{V.erased}}')
                                        .replace('@Boxed $K$', '{{K.boxed}}')
