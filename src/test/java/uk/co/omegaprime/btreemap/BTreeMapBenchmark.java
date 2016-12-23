@@ -16,7 +16,8 @@ public class BTreeMapBenchmark {
     public static class MyState {
         public final Random random = new Random();
         public final NavigableMap<Integer, Integer> warmedMap =
-                BTreeMap.create();
+                IntIntBTreeMap.create();
+                //BTreeMap.create();
                 //new TreeMap<>();
         public Integer key;
 

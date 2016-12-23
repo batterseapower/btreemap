@@ -262,6 +262,14 @@ dependencies {
     testCompile group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.17.3'
 }
 
+apply plugin: 'application'
+
+task runBenchmarks(type: JavaExec) {
+    classpath sourceSets.test.runtimeClasspath
+    main = "uk.co.omegaprime.btreemap.BTreeMapBenchmark"
+    args "-f2"
+}
+
 // I don't like writing JavaDoc for every param individually.
 // http://blog.joda.org/2014/02/turning-off-doclint-in-jdk-8-javadoc.html
 if (JavaVersion.current().isJava8Compatible()) {
