@@ -76,13 +76,14 @@ class TypeProperties {
 
     String toString() { return primitive; }
 
-    static final TypeProperties INT    = new TypeProperties("Int", "int", "Integer", "int", "Integer", "Integer.MIN_VALUE")
+    static final TypeProperties INT  = new TypeProperties("Int",  "int",  "Integer", "int",  "Integer", "Integer.MIN_VALUE")
+    static final TypeProperties LONG = new TypeProperties("Long", "long", "Long",    "long", "Long",    "Long.MIN_VALUE")
 
     static TypeProperties object(String tyParam) {
         return new TypeProperties("Object", null, tyParam, "Object", "Object", "null");
     }
     
-    static final List<TypeProperties> PRIMITIVE = [INT]
+    static final List<TypeProperties> PRIMITIVE = [INT, LONG]
 }
 
 abstract class TypesProperties {
@@ -121,7 +122,7 @@ task generateJava << {
                         ksupTyReplacement = '<? super K>'
                         kvTyReplacement = '<K,V>'
                         kvComparableTyReplacement = '<K extends Comparable<? super K>, V>'
-                        kObjectTyReplacement = '<K, Object>'
+                        kObjectTyReplacement = '<K, AbstractNode>'
                         kvsupTyReplacement = '<?, ? super V>'
                         ksupvTyReplacement = '<? super K, ?>'
                         ksupvsupTyReplacement = '<? super K, ? super V>'
@@ -133,7 +134,7 @@ task generateJava << {
                         ksupTyReplacement = '<? super K>'
                         kvTyReplacement = '<K>'
                         kvComparableTyReplacement = '<K extends Comparable<? super K>>'
-                        kObjectTyReplacement = '<K, Object>'
+                        kObjectTyReplacement = '<K, AbstractNode>'
                         kvsupTyReplacement = '<?>'
                         ksupvTyReplacement = '<? super K>'
                         ksupvsupTyReplacement = '<? super K>'
@@ -169,13 +170,13 @@ task generateJava << {
                         String tweakTemplate(String line) {
                             return line.replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>[.]class', kvPrefix + '$1.class')
                                        .replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>', kvPrefix + '$1' + kvTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[$]K[$], ?Object>', kObjectPrefix + '$1' + kObjectTyReplacement)
+                                       .replaceAll('([A-Za-z]+)<[$]K[$], ?AbstractNode>', kObjectPrefix + '$1' + kObjectTyReplacement)
+                                       .replaceAll('<[$]K[$] extends Comparable<[?] super [$]K[$]>, [$]V[$]>', kvComparableTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[?], ?[?] super [$]V[$]>', kvPrefix + '$1' + kvsupTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?]>', kvPrefix + '$1' + ksupvTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?] super [$]V[$]>', kvPrefix + '$1' + ksupvsupTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[?] super (@Boxed )?[$]K[$]>', kPrefix + '$1' + ksupTyReplacement)
                                        .replaceAll('<[$]K[$], ?[$]V[$]>', kvTyReplacement)
-                                       .replaceAll('<[$]K[$] extends Comparable<[?] super [$]K[$]>, [$]V[$]>', kvComparableTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', kPrefix + '$1' + kTyReplacement)
                                        .replaceAll('<[$]K[$]>', kTyReplacement)
                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
@@ -203,7 +204,7 @@ task generateJava << {
                     @Override
                     String tweakTemplate(String line) {
                         return line.replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
-                                   .replace('$K$', '{{K}}')
+                                   .replace('$K$', '{{K.unboxed}}')
                     }
                 })
             }
@@ -232,6 +233,11 @@ task generateJava << {
 }
 
 compileJava {
+    dependsOn generateJava
+    source "${buildDir}/generated-src"
+}
+
+javadoc {
     dependsOn generateJava
     source "${buildDir}/generated-src"
 }

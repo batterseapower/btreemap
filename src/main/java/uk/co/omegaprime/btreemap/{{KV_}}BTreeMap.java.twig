@@ -7,7 +7,7 @@ import static uk.co.omegaprime.btreemap.Node.MAX_FANOUT;
 import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
 
 /**
- * A B-tree based {@link NavigableMap} implementation.
+ * A B-tree based {@link NavigableMap} implementation for {{K.erased}} keys and {{V.erased}} values.
  * <p>
  * To get started, call {@link #create()}.
  * <p>
@@ -30,12 +30,19 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     /** @param comparator If null, the natural order of the keys will be used */
-    public static <$K$, $V$> BTreeMap<$K$, $V$> create(Comparator<@Boxed $K$> comparator) {
-        return new BTreeMap<$K$, $V$>(comparator);
+    public static <$K$, $V$> BTreeMap<$K$, $V$> create(Comparator/* wait for it.. */<? super @Boxed $K$> comparator) {
+        return new BTreeMap<$K$, $V$>({% if K.isObject() %}comparator{% else %}{{K_}}Comparator.unbox(comparator){% endif %});
     }
 
+    {% if K.isPrimitive %}
+    /** @param comparator If null, the natural order of the keys will be used */
+    public static <$K$, $V$> BTreeMap<$K$, $V$> create(Comparator<$K$> comparator) {
+        return new BTreeMap<$K$, $V$>(comparator);
+    }
+    {% endif %}
+
     public static <$K$, $V$> BTreeMap<$K$, $V$> create(SortedMap<@Boxed $K$, ? extends @Boxed $V$> that) {
-        final BTreeMap<$K$, $V$> result = new BTreeMap<$K$, $V$>(that.comparator());
+        final BTreeMap<$K$, $V$> result = create(that.comparator());
         result.putAll(that);
         return result;
     }
@@ -62,10 +69,10 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     //
     // FIXME: the single element at the end of each internal node is unused. What to do about this? Use for parent link -- might help us avoid allocation in iterator?
     private static class BubbledInsertion<$K$> {
-        private final Object leftObjects, rightObjects;
+        private final AbstractNode leftObjects, rightObjects;
         private final $K$ separator; // The seperator key is <= all keys in the right and > all keys in the left
 
-        private {{K_}}BubbledInsertion(Object leftObjects, Object rightObjects, $K$ separator) {
+        private {{K_}}BubbledInsertion(AbstractNode leftObjects, AbstractNode rightObjects, $K$ separator) {
             this.leftObjects = leftObjects;
             this.rightObjects = rightObjects;
             this.separator = separator;
@@ -102,39 +109,33 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return keysValues.getValue(index);
         }
 
-        public static <$K$, $V$> $V$ putOrDieIfFull(Node<$K$, $V$> keysValues, $K$ key, $V$ value, {{K_}}Comparator comparator) {
-            int index = find(keysValues, key, comparator);
-            return putAtIndex(keysValues, index, key, value);
-        }
-
         public static boolean canPutAtIndex(int size, int index) {
             return index >= 0 || size < MAX_FANOUT;
         }
 
-        /** @param index must be the index of key in the leaf, using same convention as Arrays.binarySearch */
-        public static <$K$, $V$> $V$ putAtIndex(Node<$K$, $V$> keysValues, int index, $K$ key, $V$ value) {
-            assert canPutAtIndex(keysValues.size, index);
+        /** @param index must be the index of existing key in the leaf */
+        public static <$K$, $V$> $V$ putOverwriteIndex(Node<$K$, $V$> keysValues, int index, $K$ key, $V$ value) {
+            assert index >= 0;
 
-            final $V$ result;
-            if (index < 0) {
-                final int size = keysValues.size;
-                assert size < MAX_FANOUT;
-
-                final int insertionPoint = -(index + 1);
-                {{KV_}}Node.arraycopyKey  (keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
-                {{KV_}}Node.arraycopyValue(keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
-                keysValues.size = size + 1;
-
-                keysValues.setKey(insertionPoint, key);
-
-                result = null;
-                index = insertionPoint;
-            } else {
-                result = keysValues.getValue(index);
-            }
-
+            final $V$ result = keysValues.getValue(index);
             keysValues.setValue(index, value);
             return result;
+        }
+
+        /** @param index must be the insertion point in the leaf, using same convention as Arrays.binarySearch */
+        public static <$K$, $V$> void putInsertIndex(Node<$K$, $V$> keysValues, int index, $K$ key, $V$ value) {
+            assert index < 0 && keysValues.size < MAX_FANOUT;
+
+            final int size = keysValues.size;
+            final int insertionPoint = -(index + 1);
+            assert size < MAX_FANOUT && insertionPoint <= size;
+
+            {{KV_}}Node.arraycopyKey  (keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
+            {{KV_}}Node.arraycopyValue(keysValues, insertionPoint, keysValues, insertionPoint + 1, size - insertionPoint);
+            keysValues.size = size + 1;
+
+            keysValues.setKey(insertionPoint, key);
+            keysValues.setValue(insertionPoint, value);
         }
 
         private static <$K$, $V$> void copy(Node<$K$, $V$> srcKeysValues, int srcIndex, Node<? super $K$, ? super $V$> dstKeysValues, int dstIndex, int size) {
@@ -177,16 +178,16 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     private static class Internal {
         private Internal() {}
 
-        private static <$K$> $K$ getKey(Node<$K$, Object> repr, int index) {
+        private static <$K$> $K$ getKey(Node<$K$, AbstractNode> repr, int index) {
             return repr.getKey(index);
         }
 
-        private static <$K$> Object getNode(Node<$K$, Object> repr, int index) {
-            return repr.getValue(index);
+        private static <$K$> AbstractNode getNode(Node<$K$, AbstractNode> repr, int index) {
+            return (AbstractNode)repr.getValue(index);
         }
 
         /** Always returns a valid index into the nodes array. Keys in the node indicated in the index will be >= key */
-        public static <$K$> int find(Node<$K$, Object> repr, @Erased $K$ key, {{K_}}Comparator comparator) {
+        public static <$K$> int find(Node<$K$, AbstractNode> repr, @Erased $K$ key, {{K_}}Comparator comparator) {
             final int size = repr.size;
             if (BINARY_SEARCH) {
                 final int index = repr.binarySearch(0, size - 1, key, comparator);
@@ -211,7 +212,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return size < MAX_FANOUT;
         }
 
-        public static <$K$> void putAtIndex(Node<$K$, Object> repr, int index, BubbledInsertion<$K$> toBubble) {
+        public static <$K$> void putAtIndex(Node<$K$, AbstractNode> repr, int index, BubbledInsertion<$K$> toBubble) {
             assert canPutAtIndex(repr.size);
 
             // Tree:         Bubbled input:
@@ -230,7 +231,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             repr.setValue(index + 1, toBubble.rightObjects);
         }
 
-        private static <$K$> void deleteAtIndex(Node<$K$, Object> node, int index) {
+        private static <$K$> void deleteAtIndex(Node<$K$, AbstractNode> node, int index) {
             final int size = --node.size;
             {{KObject_}}Node.arraycopyKey  (node, index,     node, index - 1, size - index);
             {{KObject_}}Node.arraycopyValue(node, index + 1, node, index,     size - index);
@@ -240,7 +241,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             {% if V.isObject %}node.setValue(size,    null); {% endif %}
         }
 
-        public static <$K$> BubbledInsertion<$K$> bubblePutAtIndex(Node<$K$, Object> repr, int nodeIndex, BubbledInsertion<$K$> toBubble) {
+        public static <$K$> BubbledInsertion<$K$> bubblePutAtIndex(Node<$K$, AbstractNode> repr, int nodeIndex, BubbledInsertion<$K$> toBubble) {
             assert !canPutAtIndex(repr.size); // i.e. size == MAX_FANOUT
 
             // Tree:         Bubbled input:
@@ -254,7 +255,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             //  Key   0        Key    1
             //  Node 0 1A      Node 1B 2
 
-            final Node<$K$, Object> l = new Node<$K$, Object>(), r = new Node<$K$, Object>();
+            final Node<$K$, AbstractNode> l = new Node<$K$, AbstractNode>(), r = new Node<$K$, AbstractNode>();
             l.size = r.size = MIN_FANOUT;
 
             final $K$ separator;
@@ -309,7 +310,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     private final Comparator<? super $K$> comparator;
 
     // Allocate these lazily to optimize allocation of lots of empty BTreeMaps
-    private Object rootObjects;
+    private AbstractNode rootObjects;
 
     private int depth; // Number of levels of internal nodes in the tree
     private int size;
@@ -324,11 +325,11 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         }
     }
 
-    private void checkInRange(Object k, Object min, Object max, Bound minBound, Bound maxBound) {
+    private void checkInRange(@Boxed $K$ k, @Boxed $K$ min, @Boxed $K$ max, Bound minBound, Bound maxBound) {
         assert minBound.lt(min, k, comparator) && maxBound.lt(k, max, comparator);
     }
 
-    private void checkCore(Object repr, int depth, Object min, Object max, Bound minBound, Bound maxBound) {
+    private void checkCore(AbstractNode repr, int depth, @Boxed $K$ min, @Boxed $K$ max, Bound minBound, Bound maxBound) {
         final int size = repr.size; // FIXME: decide what to do here -- base class, or push into branches?
         assert size <= Node.MAX_FANOUT;
         if (depth == this.depth) {
@@ -362,7 +363,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 {% endif %}
             }
         } else {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
 
             {
                 int i;
@@ -453,7 +454,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
 
     private Node<$K$, $V$> findLeaf(@Erased $K$ key) {
-        Object nextObjects = rootObjects;
+        AbstractNode nextObjects = rootObjects;
         int depth = this.depth;
 
         if (nextObjects == null) {
@@ -462,7 +463,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         final Comparator<? super @Boxed $K$> comparator = this.comparator;
         while (depth-- > 0) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)nextObjects;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)nextObjects;
             final int ix = Internal.find(internal, key, comparator);
             nextObjects = Internal.getNode(internal, ix);
         }
@@ -649,8 +650,9 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return false;
         } else {
             final Node<$K$, $V$> leaf = new Node<$K$, $V$>();
-            final Object result = Leaf.putOrDieIfFull(leaf, key, value, comparator);
-            assert result == null;
+            leaf.setKey(0, key);
+            leaf.setValue(0, value);
+            leaf.size = 1;
 
             rootObjects = leaf;
             this.size = 1;
@@ -659,7 +661,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     private void finishBubbling(BubbledInsertion<$K$> toBubble) {
-        final Node<$K$, Object> internal = new Node<$K$, Object>();
+        final Node<$K$, AbstractNode> internal = new Node<$K$, AbstractNode>();
         internal.size = 2;
         internal.setKey  (0, toBubble.separator);
         internal.setValue(0, toBubble.leftObjects);
@@ -669,20 +671,25 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         this.depth++;
     }
 
-    private BubbledInsertion<$K$> putInternal($K$ key, $V$ value, Object nextObjects, int depth, @Erased @Boxed $V$[] resultBox) {
+    private BubbledInsertion<$K$> putInternal($K$ key, $V$ value, AbstractNode nextObjects, int depth, @Erased @Boxed $V$[] resultBox) {
         if (depth == 0) {
             final Node<$K$, $V$> leaf = (Node<$K$, $V$>)nextObjects;
             final int nodeIndex = Leaf.find(leaf, key, comparator);
             if (nodeIndex < 0) this.size++;
 
             if (Leaf.canPutAtIndex(leaf.size, nodeIndex)) {
-                resultBox[0] = Leaf.putAtIndex(leaf, nodeIndex, key, value);
+                if (nodeIndex >= 0) {
+                    resultBox[0] = Leaf.putOverwriteIndex(leaf, nodeIndex, key, value);
+                } else {
+                    Leaf.putInsertIndex(leaf, nodeIndex, key, value);
+                }
+
                 return null;
             }
 
             return Leaf.bubblePutAtIndex(leaf, nodeIndex, key, value);
         } else {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)nextObjects;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)nextObjects;
             final int nodeIndex = Internal.find(internal, key, comparator);
 
             final BubbledInsertion<$K$> toBubble = putInternal(key, value, Internal.getNode(internal, nodeIndex), depth - 1, resultBox);
@@ -691,20 +698,25 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if V.isPrimitive() %}
-    private BubbledInsertion<$K$> putInternal{{V.name}}($K$ key, $V$ value, Object nextObjects, int depth, $V$[] resultBox) {
+    private BubbledInsertion<$K$> putInternal{{V.name}}($K$ key, $V$ value, AbstractNode nextObjects, int depth, $V$[] resultBox) {
         if (depth == 0) {
             final Node<$K$, $V$> leaf = (Node<$K$, $V$>)nextObjects;
             final int nodeIndex = Leaf.find(leaf, key, comparator);
             if (nodeIndex < 0) this.size++;
 
             if (Leaf.canPutAtIndex(leaf.size, nodeIndex)) {
-                resultBox[0] = Leaf.putAtIndex(leaf, nodeIndex, key, value);
+                if (nodeIndex >= 0) {
+                    resultBox[0] = Leaf.putOverwriteIndex(leaf, nodeIndex, key, value);
+                } else {
+                    Leaf.putInsertIndex(leaf, nodeIndex, key, value);
+                }
+
                 return null;
             }
 
             return Leaf.bubblePutAtIndex(leaf, nodeIndex, key, value);
         } else {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)nextObjects;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)nextObjects;
             final int nodeIndex = Internal.find(internal, key, comparator);
 
             final BubbledInsertion<$K$> toBubble = putInternal{{V.name}}(key, value, Internal.getNode(internal, nodeIndex), depth - 1, resultBox);
@@ -713,7 +725,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
     {% endif %}
 
-    private BubbledInsertion<$K$> putInternalFinishInternal(Node<$K$, Object> internal, int nodeIndex, BubbledInsertion<$K$> toBubble) {
+    private BubbledInsertion<$K$> putInternalFinishInternal(Node<$K$, AbstractNode> internal, int nodeIndex, BubbledInsertion<$K$> toBubble) {
         if (toBubble == null) {
             return null;
         }
@@ -759,7 +771,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         return Iterables.hashCode(entrySet());
     }
 
-    private static <$K$, $V$> String toStringInternal(Object repr, int depth) {
+    private static <$K$, $V$> String toStringInternal(AbstractNode repr, int depth) {
         if (depth == 0) {
             final Node<$K$, $V$> leaf = (Node<$K$, $V$>)repr;
             final StringBuilder sb = new StringBuilder();
@@ -770,13 +782,13 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
             return sb.toString();
         } else {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final StringBuilder sb = new StringBuilder();
             for (int i = 0; i < internal.size; i++) {
                 if (sb.length() != 0) {
                     sb.append(" |").append(Internal.getKey(internal, i - 1)).append("| ");
                 }
-                final Object node = Internal.getNode(internal, i);
+                final AbstractNode node = Internal.getNode(internal, i);
                 sb.append("{").append(toStringInternal(node, depth - 1)).append("}");
             }
 
@@ -786,7 +798,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
 
     {% if K.isPrimitive() %}
-    static <K, V> $K$ getEntryKey{{K.name}}(Entry<K, V> e) {
+    static <$K$, $V$> $K$ getEntryKey{{K.name}}(Entry<@Boxed $K$, @Boxed $V$> e) {
         return e == null ? {{K.dfault}} : ($K$)e.getKey();
     }
     {% endif %}
@@ -838,13 +850,13 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         final int depth = this.depth;
 
-        Node<$K$, Object> backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
+        Node<$K$, AbstractNode> backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
         int backtrackIndex = -1;                  // Index of that prior child
         int backtrackDepth = -1;                  // Depth of that internal node
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         for (int i = 0; i < depth; i++) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final int index = Internal.find(internal, key, comparator);
             if (index > 0) {
                 backtrackParent = internal;
@@ -870,7 +882,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             repr = backtrackParent;
             int index = backtrackIndex;
             for (int i = backtrackDepth; i < depth; i++) {
-                final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                 repr = Internal.getNode(internal, index);
                 index = repr.size - 1;
             }
@@ -902,13 +914,13 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         final int depth = this.depth;
 
-        Node<$K$, Object> backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
+        Node<$K$, AbstractNode> backtrackParent = null; // Deepest internal node on the path to "key" which has a child prior to the one we descended into
         int backtrackIndex = -1;                  // Index of that prior child
         int backtrackDepth = -1;                  // Depth of that internal node
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         for (int i = 0; i < depth; i++) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final int index = Internal.find(internal, key, comparator);
             if (index > 0) {
                 backtrackParent = internal;
@@ -937,7 +949,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 repr = backtrackParent;
                 int index = backtrackIndex;
                 for (int i = backtrackDepth; i < depth; i++) {
-                    final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                    final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                     repr = Internal.getNode(internal, index);
                     index = internal.size - 1;
                 }
@@ -970,13 +982,13 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         final int depth = this.depth;
 
-        Node<$K$, Object> backtrackParent = null; // Deepest internal node on the path to "key" which has a child next to the one we descended into
+        Node<$K$, AbstractNode> backtrackParent = null; // Deepest internal node on the path to "key" which has a child next to the one we descended into
         int backtrackIndex = -1;                  // Index of that next child
         int backtrackDepth = -1;                  // Depth of that internal node
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         for (int i = 0; i < depth; i++) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final int index = Internal.find(internal, key, comparator);
             if (index < internal.size - 1) {
                 backtrackParent = internal;
@@ -1005,7 +1017,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 repr = backtrackParent;
                 int index = backtrackIndex;
                 for (int i = backtrackDepth; i < depth; i++) {
-                    final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                    final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                     repr = Internal.getNode(internal, index);
                     index = 0;
                 }
@@ -1038,13 +1050,13 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         final int depth = this.depth;
 
-        Node<$K$, Object> backtrackParent = null; // Deepest internal node on the path to "key" which has a child next to the one we descended into
+        Node<$K$, AbstractNode> backtrackParent = null; // Deepest internal node on the path to "key" which has a child next to the one we descended into
         int backtrackIndex = -1;                  // Index of that next child
         int backtrackDepth = -1;                  // Depth of that internal node
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         for (int i = 0; i < depth; i++) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final int index = Internal.find(internal, key, comparator);
             if (index < internal.size - 1) {
                 backtrackParent = internal;
@@ -1070,7 +1082,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             repr = backtrackParent;
             int index = backtrackIndex;
             for (int i = backtrackDepth; i < depth; i++) {
-                final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                 repr = Internal.getNode(internal, index);
                 index = 0;
             }
@@ -1091,12 +1103,12 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return null;
         }
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         int depth = this.depth;
 
         while (depth-- > 0) {
             final int index = 0;
-            repr = Internal.getNode((Node<$K$, Object>)repr, index);
+            repr = Internal.getNode((Node<$K$, AbstractNode>)repr, index);
         }
 
         final Node<$K$, $V$> leaf = (Node<$K$, $V$>)repr;
@@ -1118,11 +1130,11 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return null;
         }
 
-        Object repr = rootObjects;
+        AbstractNode repr = rootObjects;
         int depth = this.depth;
 
         while (depth-- > 0) {
-            final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
             final int index = internal.size - 1;
             repr = Internal.getNode(internal, index);
         }
@@ -1241,7 +1253,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         // indexes[0] is an index into rootObjects.
         // indexes[i] is an index into nodes[i - 1] (for i >= 1)
         private final int[] indexes = new int[depth + 1];
-        private final Object[] nodes = new Object[depth];
+        private final AbstractNode[] nodes = new AbstractNode[depth];
         // If nextLevel >= 0:
         //   1. indexes[nextLevel] < size - 1
         //   2. There is no level l > nextLevel such that indexes[l] < size - 1
@@ -1252,7 +1264,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             nextLevel = -1;
             hasNext = false;
             if (rootObjects != null) {
-                Object node = rootObjects;
+                AbstractNode node = rootObjects;
                 for (int i = 0;; i++) {
                     final int index = indexes[i] = 0;
                     if (index < node.size - 1) {
@@ -1263,7 +1275,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                         break;
                     }
 
-                    node = nodes[i] = Internal.getNode((Node<$K$, Object>)node, index);
+                    node = nodes[i] = Internal.getNode((Node<$K$, AbstractNode>)node, index);
                 }
 
                 hasNext = node.size > 0;
@@ -1275,9 +1287,9 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 return null;
             }
 
-            Object repr = rootObjects;
+            AbstractNode repr = rootObjects;
             for (int i = 0; i < nodes.length; i++) {
-                final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                 final int index = indexes[i] = Internal.find(internal, key, comparator);
                 if (index < internal.size - 1) {
                     nextLevel = i;
@@ -1292,7 +1304,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         private void findNextLevel() {
             for (int i = indexes.length - 1; i >= 0; i--) {
-                final Object node = i == 0 ? rootObjects : nodes[i - 1];
+                final AbstractNode node = i == 0 ? rootObjects : nodes[i - 1];
                 if (indexes[i] < node.size - 1) {
                     nextLevel = i;
                     break;
@@ -1300,7 +1312,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             }
         }
 
-        private void positionAtIndex(Object repr, int returnIndex) {
+        private void positionAtIndex(AbstractNode repr, int returnIndex) {
             if (returnIndex >= repr.size) {
                 // We need to find the first item in the next leaf node.
                 int i = nextLevel;
@@ -1313,7 +1325,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 int index = indexes[i] + 1;
                 for (; i < nodes.length; i++) {
                     indexes[i] = index;
-                    repr = nodes[i] = Internal.getNode((Node<$K$, Object>)repr, index);
+                    repr = nodes[i] = Internal.getNode((Node<$K$, AbstractNode>)repr, index);
                     index = 0;
                 }
 
@@ -1384,12 +1396,12 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 hasNext = false;
             } else {
                 int index = ++indexes[nextLevel];
-                Object node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
+                AbstractNode node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
                 assert index < node.size;
                 if (nextLevel < nodes.length) {
                     // We stepped forward to a later item in an internal node: update all children
                     for (int i = nextLevel; i < nodes.length;) {
-                        node = nodes[i++] = Internal.getNode((Node<$K$, Object>)node, index);
+                        node = nodes[i++] = Internal.getNode((Node<$K$, AbstractNode>)node, index);
                         index = indexes[i] = 0;
                     }
 
@@ -1441,7 +1453,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         // indexes[0] is an index into rootObjects.
         // indexes[i] is an index into nodes[i - 1] (for i >= 1)
         private final int[] indexes = new int[depth + 1];
-        private final Object[] nodes = new Object[depth];
+        private final AbstractNode[] nodes = new AbstractNode[depth];
         // If nextLevel >= 0:
         //   1. indexes[nextLevel] > 0
         //   2. There is no level l > nextLevel such that indexes[l] > 0
@@ -1452,7 +1464,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             nextLevel = -1;
             hasNext = false;
             if (rootObjects != null) {
-                Object node = rootObjects;
+                AbstractNode node = rootObjects;
                 for (int i = 0;; i++) {
                     final int index = indexes[i] = node.size - 1;
                     if (index > 0) {
@@ -1463,7 +1475,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                         break;
                     }
 
-                    node = nodes[i] = Internal.getNode((Node<$K$, Object>)node, index);
+                    node = nodes[i] = Internal.getNode((Node<$K$, AbstractNode>)node, index);
                 }
 
                 hasNext = node.size > 0;
@@ -1475,9 +1487,9 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 return null;
             }
 
-            Object repr = rootObjects;
+            AbstractNode repr = rootObjects;
             for (int i = 0; i < nodes.length; i++) {
-                final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                 final int index = indexes[i] = Internal.find(internal, key, comparator);
                 if (index > 0) {
                     nextLevel = i;
@@ -1497,10 +1509,10 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                     return;
                 }
 
-                Object repr = i == 0 ? rootObjects : nodes[i - 1];
+                AbstractNode repr = i == 0 ? rootObjects : nodes[i - 1];
                 int index = indexes[i] - 1;
                 for (; i < nodes.length; i++) {
-                    final Node<$K$, Object> internal = (Node<$K$, Object>)repr;
+                    final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                     indexes[i] = index;
                     repr = nodes[i] = Internal.getNode(internal, index);
                     index = internal.size - 1;
@@ -1581,9 +1593,9 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 assert index >= 0;
                 if (nextLevel < nodes.length) {
                     // We stepped back to an earlier item in an internal node: update all children
-                    Object node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
+                    AbstractNode node = nextLevel == 0 ? rootObjects : nodes[nextLevel - 1];
                     for (int i = nextLevel; i < nodes.length;) {
-                        node = nodes[i++] = Internal.getNode((Node<$K$, Object>)node, index);
+                        node = nodes[i++] = Internal.getNode((Node<$K$, AbstractNode>)node, index);
                         index = indexes[i] = node.size - 1;
                         assert index > 0;
                     }
@@ -1651,7 +1663,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
             @Override
             public NavigableMap2<@Boxed $K$, @Boxed $V$> subMap(@Boxed $K$ fromKey, boolean fromInclusive, @Boxed $K$ toKey, boolean toInclusive) {
-                return new RestrictedBTreeMap<>(
+                return new RestrictedBTreeMap<$K$, $V$>(
                         {{KV_}}BTreeMap.this, fromKey, toKey,
                         Bound.inclusive(fromInclusive),
                         Bound.inclusive(toInclusive)).asNavigableMap2();
@@ -1659,7 +1671,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
             @Override
             public NavigableMap2<@Boxed $K$, @Boxed $V$> headMap(@Boxed $K$ toKey, boolean inclusive) {
-                return new RestrictedBTreeMap<>(
+                return new RestrictedBTreeMap<$K$, $V$>(
                         {{KV_}}BTreeMap.this, null, toKey,
                         Bound.MISSING,
                         Bound.inclusive(inclusive)).asNavigableMap2();
@@ -1667,7 +1679,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
             @Override
             public NavigableMap2<@Boxed $K$, @Boxed $V$> tailMap(@Boxed $K$ fromKey, boolean inclusive) {
-                return new RestrictedBTreeMap<>(
+                return new RestrictedBTreeMap<$K$, $V$>(
                         {{KV_}}BTreeMap.this, fromKey, null,
                         Bound.inclusive(inclusive),
                         Bound.MISSING).asNavigableMap2();
@@ -1675,43 +1687,74 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         };
     }
 
+    {% if V.isPrimitive() %}
+    public $V$ remove{{V.name}}(Object key) {
+        // TODO: fast path avoiding allocation of result?
+        final @Boxed $V$ result = remove(key);
+        return result == null ? {{V.dfault}} : ($V$)result;
+    }
+
+    {% if K.isPrimitive() %}
+    public $V$ remove{{V.name}}($K$ key) {
+        // TODO: fast path avoiding allocation of result?
+        final @Boxed $V$ result = remove(key);
+        return result == null ? {{V.dfault}} : ($V$)result;
+    }
+    {% endif %}
+    {% endif %}
+
+    {% if K.isPrimitive() %}
     @Override
-    public $V$ remove(Object key) {
+    public @Boxed $V$ remove(Object key) {
+        if (!(key instanceof @Boxed $K$)) {
+            return null;
+        } else {
+            return remove(($K$)key);
+        }
+    }
+
+    public @Boxed $V$ remove($K$ key) {
+    {% else %}
+    @Override
+    public @Boxed $V$ remove(Object key) {
+    {% endif %}
         if (rootObjects == null) {
             return null;
         }
 
         final $V$ result = removeCore(rootObjects, depth, key);
         if (rootObjects.size == 1 && depth > 0) {
-            rootObjects = Internal.getNode(rootObjects, 0);
+            rootObjects = Internal.getNode((Node<$K$, AbstractNode>)rootObjects, 0);
             depth--;
         }
 
         return result;
     }
 
-    private $V$ removeCore(Node node, int depth, Object key) {
+    private @Boxed $V$ removeCore(Object node, int depth, @Erased $K$ key) {
         if (depth == 0) {
-            final int index = Leaf.find(node, key, comparator);
+            final Node<$K$, $V$> leaf = (Node<$K$, $V$>)node;
+            final int index = Leaf.find(leaf, key, comparator);
             if (index < 0) {
                 return null;
             } else {
-                final $V$ result = ($V$)Leaf.getValue(node, index);
+                final $V$ result = ($V$)Leaf.getValue(leaf, index);
 
                 size--;
-                node.size--;
-                Node.arraycopyKey  (node, index + 1, node, index, node.size - index);
-                Node.arraycopyValue(node, index + 1, node, index, node.size - index);
+                leaf.size--;
+                {{KV_}}Node.arraycopyKey  (leaf, index + 1, leaf, index, leaf.size - index);
+                {{KV_}}Node.arraycopyValue(leaf, index + 1, leaf, index, leaf.size - index);
 
                 // Avoid memory leaks
-                node.setKey  (node.size, null);
-                node.setValue(node.size, null);
+                {% if K.isObject() %}leaf.setKey  (leaf.size, null);{% endif %}
+                {% if V.isObject() %}leaf.setValue(leaf.size, null);{% endif %}
 
                 return result;
             }
         } else {
-            final int index = Internal.find(node, key, comparator);
-            final Node child = Internal.getNode(node, index);
+            final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)node;
+            final int index = Internal.find(internal, key, comparator);
+            final AbstractNode child = Internal.getNode(internal, index);
             final $V$ result = removeCore(child, depth - 1, key);
 
             if (child.size < Node.MIN_FANOUT) {
@@ -1719,95 +1762,103 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
                 if (index > 0) {
                     // Take key from or merge with predecessor
-                    final Node pred = Internal.getNode(node, index - 1);
+                    final AbstractNode pred = Internal.getNode(internal, index - 1);
                     if (pred.size > Node.MIN_FANOUT) {
                         // Can take key from predecessor
                         final int predSize = --pred.size;
                         final int childSize = child.size++;
 
-                        final Object predLtKey;
+                        final $K$ predLtKey;
                         if (depth == 1) {
                             // Children are leaves
-                            predLtKey = pred.getKey(predSize);
-                            final Object predValue = pred.getValue(predSize);
+                            final Node<$K$, $V$> childLeaf = (Node<$K$, $V$>)child;
+                            final Node<$K$, $V$> predLeaf  = (Node<$K$, $V$>)pred;
+                            predLtKey = predLeaf.getKey(predSize);
+                            final $V$ predValue = predLeaf.getValue(predSize);
 
                             // Avoid memory leaks
-                            pred.setKey  (predSize, null);
-                            pred.setValue(predSize, null);
+                            {% if K.isObject() %}predLeaf.setKey  (predSize, null);{% endif %}
+                            {% if V.isObject() %}predLeaf.setValue(predSize, null);{% endif %}
 
-                            Node.arraycopyKey  (child, 0, child, 1, childSize);
-                            Node.arraycopyValue(child, 0, child, 1, childSize);
-                            child.setKey  (0, predLtKey);
-                            child.setValue(0, predValue);
+                            {{KV_}}Node.arraycopyKey  (childLeaf, 0, childLeaf, 1, childSize);
+                            {{KV_}}Node.arraycopyValue(childLeaf, 0, childLeaf, 1, childSize);
+                            childLeaf.setKey  (0, predLtKey);
+                            childLeaf.setValue(0, predValue);
                         } else {
                             // Children are internal nodes
-                            predLtKey = Internal.getKey(pred, predSize - 1);
-                            final Object predKey = Internal.getKey(node, index - 1);
-                            final Node predNode = Internal.getNode(pred, predSize);
+                            final Node<$K$, AbstractNode> childInternal = (Node<$K$, AbstractNode>)child;
+                            final Node<$K$, AbstractNode> predInternal  = (Node<$K$, AbstractNode>)pred;
+                            predLtKey = Internal.getKey(predInternal, predSize - 1);
+                            final $K$ predKey = Internal.getKey(internal, index - 1);
+                            final AbstractNode predNode = Internal.getNode(predInternal, predSize);
 
                             // Avoid memory leaks
-                            pred.setKey  (predSize - 1, null);
-                            pred.setValue(predSize,     null);
+                            {% if K.isObject %}predInternal.setKey  (predSize - 1, null);{% endif %}
+                            {% if V.isObject %}predInternal.setValue(predSize,     null);{% endif %}
 
-                            Node.arraycopyKey  (child, 0, child, 1,  childSize - 1);
-                            Node.arraycopyValue(child, 0, child, 1, childSize);
-                            child.setKey  (0, predKey);
-                            child.setValue(0, predNode);
+                            {{KObject_}}Node.arraycopyKey  (childInternal, 0, childInternal, 1,  childSize - 1);
+                            {{KObject_}}Node.arraycopyValue(childInternal, 0, childInternal, 1, childSize);
+                            childInternal.setKey  (0, predKey);
+                            childInternal.setValue(0, predNode);
                         }
 
-                        node.setKey(index - 1, predLtKey);
+                        internal.setKey(index - 1, predLtKey);
                     } else {
                         // Can merge with predecessor
-                        final Object middleKey = Internal.getKey(node, index - 1);
-                        Internal.deleteAtIndex(node, index);
+                        final $K$ middleKey = Internal.getKey(internal, index - 1);
+                        Internal.deleteAtIndex(internal, index);
                         appendToPred(pred, middleKey, child, depth - 1);
                     }
                 } else {
                     // Take key from or merge with successor (there must be one because all nodes except the root must have at least 1 sibling)
-                    final Node succ = Internal.getNode(node, index + 1);
+                    final AbstractNode succ = Internal.getNode(internal, index + 1);
                     if (succ.size > Node.MIN_FANOUT) {
                         // Can take key from successor
                         final int succSize = --succ.size;
                         final int childSize = child.size++;
 
-                        final Object succGteKey;
+                        final $K$ succGteKey;
                         if (depth == 1) {
                             // Children are leaves
-                            succGteKey = Leaf.getKey(succ, 1);
-                            final Object succKey   = succ.getKey  (0);
-                            final Object succValue = succ.getValue(0);
+                            final Node<$K$, $V$> childLeaf = (Node<$K$, $V$>)child;
+                            final Node<$K$, $V$> succLeaf  = (Node<$K$, $V$>)succ;
+                            succGteKey = Leaf.getKey(succLeaf, 1);
+                            final $K$ succKey   = succLeaf.getKey  (0);
+                            final $V$ succValue = succLeaf.getValue(0);
 
-                            Node.arraycopyKey  (succ, 1, succ, 0,   succSize);
-                            Node.arraycopyValue(succ, 1, succ, 0, succSize);
+                            {{KV_}}Node.arraycopyKey  (succLeaf, 1, succLeaf, 0,   succSize);
+                            {{KV_}}Node.arraycopyValue(succLeaf, 1, succLeaf, 0, succSize);
 
                             // Avoid memory leaks
-                            succ.setKey  (succSize, null);
-                            succ.setValue(succSize, null);
+                            {% if K.isObject %}succLeaf.setKey  (succSize, null);{% endif %}
+                            {% if V.isObject %}succLeaf.setValue(succSize, null);{% endif %}
 
-                            child.setKey  (childSize, succKey);
-                            child.setValue(childSize, succValue);
+                            childLeaf.setKey  (childSize, succKey);
+                            childLeaf.setValue(childSize, succValue);
                         } else {
                             // Children are internal nodes
-                            succGteKey = Internal.getKey(succ, 0);
-                            final Object succKey = Internal.getKey(node, index);
-                            final Node succNode = Internal.getNode(succ, 0);
+                            final Node<$K$, AbstractNode> childInternal = (Node<$K$, AbstractNode>)child;
+                            final Node<$K$, AbstractNode> succInternal  = (Node<$K$, AbstractNode>)succ;
+                            succGteKey = Internal.getKey(succInternal, 0);
+                            final $K$ succKey = Internal.getKey(internal, index);
+                            final AbstractNode succNode = Internal.getNode(succInternal, 0);
 
-                            Node.arraycopyKey  (succ, 1, succ, 0,  succSize - 1);
-                            Node.arraycopyValue(succ, 1, succ, 0, succSize);
+                            {{KObject_}}Node.arraycopyKey  (succInternal, 1, succInternal, 0, succSize - 1);
+                            {{KObject_}}Node.arraycopyValue(succInternal, 1, succInternal, 0, succSize);
 
                             // Avoid memory leaks
-                            succ.setKey  (succSize - 1, null);
-                            succ.setValue(succSize,     null);
+                            {% if K.isObject %}succInternal.setKey  (succSize - 1, null);{% endif %}
+                            {% if V.isObject %}succInternal.setValue(succSize,     null);{% endif %}
 
-                            child.setKey  (childSize, succKey);
-                            child.setValue(childSize, succNode);
+                            childInternal.setKey  (childSize, succKey);
+                            childInternal.setValue(childSize, succNode);
                         }
 
-                        node.setKey(index, succGteKey);
+                        internal.setKey(index, succGteKey);
                     } else {
                         // Can merge with successor
-                        final Object middleKey = Internal.getKey(node, index);
-                        Internal.deleteAtIndex(node, index + 1);
+                        final $K$ middleKey = Internal.getKey(internal, index);
+                        Internal.deleteAtIndex(internal, index + 1);
                         appendToPred(child, middleKey, succ, depth - 1);
                     }
                 }
@@ -1817,7 +1868,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         }
     }
 
-    private static void appendToPred(Node pred, Object middleKey, Node succ, int depth) {
+    private void appendToPred(AbstractNode pred, $K$ middleKey, AbstractNode succ, int depth) {
         final int succSize = succ.size;
         final int predSize = pred.size;
 
@@ -1826,13 +1877,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
         if (depth == 0) {
             // Children are leaves
-            Node.arraycopyKey  (succ, 0, pred, predSize, succSize);
-            Node.arraycopyValue(succ, 0, pred, predSize, succSize);
+            final Node<$K$, $V$> succLeaf = (Node<$K$, $V$>)succ,
+                                 predLeaf = (Node<$K$, $V$>)pred;
+            {{KV_}}Node.arraycopyKey  (succLeaf, 0, predLeaf, predSize, succSize);
+            {{KV_}}Node.arraycopyValue(succLeaf, 0, predLeaf, predSize, succSize);
         } else {
             // Children are internal nodes
-            pred.setKey(predSize - 1, middleKey);
-            Node.arraycopyKey  (succ, 0, pred, predSize, succSize - 1);
-            Node.arraycopyValue(succ, 0, pred, predSize, succSize);
+            final Node<$K$, AbstractNode> succInternal = (Node<$K$, AbstractNode>)succ,
+                                          predInternal = (Node<$K$, AbstractNode>)pred;
+            predInternal.setKey(predSize - 1, middleKey);
+            {{KObject_}}Node.arraycopyKey  (succInternal, 0, predInternal, predSize, succSize - 1);
+            {{KObject_}}Node.arraycopyValue(succInternal, 0, predInternal, predSize, succSize);
         }
     }
 }

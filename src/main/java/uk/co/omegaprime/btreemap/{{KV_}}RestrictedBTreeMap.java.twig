@@ -2,13 +2,13 @@ package uk.co.omegaprime.btreemap;
 
 import java.util.*;
 
-class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
+class RestrictedBTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> {
 
-    private final BTreeMap<K, V> that;
-    private final K min, max;
+    private final BTreeMap<$K$, $V$> that;
+    private final @Boxed $K$ min, max;
     private final Bound minBound, maxBound;
 
-    public RestrictedBTreeMap(BTreeMap<K, V> that, K min, K max, Bound minBound, Bound maxBound) {
+    public {{KV_}}RestrictedBTreeMap(BTreeMap<$K$, $V$> that, @Boxed $K$ min, @Boxed $K$ max, Bound minBound, Bound maxBound) {
         // Map should still work fine if this invariant is violated, but:
         //   1. It might be less efficient than using "that" directly
         //   2. It's impossible for a user to construct such an instance right now
@@ -26,8 +26,8 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Entry<K, V> lowerEntry(K key) {
-        final Entry<K, V> e;
+    public Entry<@Boxed $K$, @Boxed $V$> lowerEntry(@Boxed $K$ key) {
+        final Entry<@Boxed $K$, @Boxed $V$> e;
         if (maxBound == Bound.MISSING || Objects.compare(key, max, comparator()) <= 0) {
             e = that.lowerEntry(key);
         } else if (maxBound == Bound.INCLUSIVE) {
@@ -40,13 +40,13 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public K lowerKey(K key) {
+    public @Boxed $K$ lowerKey(@Boxed $K$ key) {
         return BTreeMap.getEntryKey(lowerEntry(key));
     }
 
     @Override
-    public Entry<K, V> floorEntry(K key) {
-        final Entry<K, V> e;
+    public Entry<@Boxed $K$, @Boxed $V$> floorEntry(@Boxed $K$ key) {
+        final Entry<@Boxed $K$, @Boxed $V$> e;
         if (maxBound == Bound.MISSING || Objects.compare(key, max, comparator()) < 0) {
             e = that.floorEntry(key);
         } else if (maxBound == Bound.INCLUSIVE) {
@@ -59,13 +59,13 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public K floorKey(K key) {
+    public @Boxed $K$ floorKey(@Boxed $K$ key) {
         return BTreeMap.getEntryKey(floorEntry(key));
     }
 
     @Override
-    public Entry<K, V> ceilingEntry(K key) {
-        final Entry<K, V> e;
+    public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry(@Boxed $K$ key) {
+        final Entry<@Boxed $K$, @Boxed $V$> e;
         if (minBound == Bound.MISSING || Objects.compare(min, key, comparator()) > 0) {
             e = that.ceilingEntry(key);
         } else if (minBound == Bound.INCLUSIVE) {
@@ -78,13 +78,13 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public K ceilingKey(K key) {
+    public @Boxed $K$ ceilingKey(@Boxed $K$ key) {
         return BTreeMap.getEntryKey(ceilingEntry(key));
     }
 
     @Override
-    public Entry<K, V> higherEntry(K key) {
-        final Entry<K, V> e;
+    public Entry<@Boxed $K$, @Boxed $V$> higherEntry(@Boxed $K$ key) {
+        final Entry<@Boxed $K$, @Boxed $V$> e;
         if (minBound == Bound.MISSING || Objects.compare(min, key, comparator()) >= 0) {
             e = that.higherEntry(key);
         } else if (minBound == Bound.INCLUSIVE) {
@@ -97,12 +97,12 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public K higherKey(K key) {
+    public @Boxed $K$ higherKey(@Boxed $K$ key) {
         return BTreeMap.getEntryKey(higherEntry(key));
     }
 
     @Override
-    public Entry<K, V> firstEntry() {
+    public Entry<@Boxed $K$, @Boxed $V$> firstEntry() {
         switch (minBound) {
             case MISSING:   return that.firstEntry();
             case INCLUSIVE: return that.ceilingEntry(min);
@@ -112,7 +112,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Entry<K, V> lastEntry() {
+    public Entry<@Boxed $K$, @Boxed $V$> lastEntry() {
         switch (minBound) {
             case MISSING:   return that.lastEntry();
             case INCLUSIVE: return that.floorEntry(max);
@@ -122,9 +122,9 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Entry<K, V> pollFirstEntry() {
+    public Entry<@Boxed $K$, @Boxed $V$> pollFirstEntry() {
         // TODO: fast path?
-        final Entry<K, V> e = firstEntry();
+        final Entry<@Boxed $K$, @Boxed $V$> e = firstEntry();
         if (e != null) {
             remove(e.getKey());
         }
@@ -133,9 +133,9 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Entry<K, V> pollLastEntry() {
+    public Entry<@Boxed $K$, @Boxed $V$> pollLastEntry() {
         // TODO: fast path?
-        final Entry<K, V> e = lastEntry();
+        final Entry<@Boxed $K$, @Boxed $V$> e = lastEntry();
         if (e != null) {
             remove(e.getKey());
         }
@@ -144,69 +144,69 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public NavigableMap<K, V> descendingMap() {
+    public NavigableMap<@Boxed $K$, @Boxed $V$> descendingMap() {
         return new DescendingNavigableMap<>(this.asNavigableMap2());
     }
 
     @Override
-    public NavigableSet<K> navigableKeySet() {
+    public NavigableSet<@Boxed $K$> navigableKeySet() {
         return new NavigableMapKeySet<>(this);
     }
 
     @Override
-    public NavigableSet<K> descendingKeySet() {
+    public NavigableSet<@Boxed $K$> descendingKeySet() {
         return descendingMap().descendingKeySet();
     }
 
     @Override
-    public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+    public NavigableMap<@Boxed $K$, @Boxed $V$> subMap(@Boxed $K$ fromKey, boolean fromInclusive, @Boxed $K$ toKey, boolean toInclusive) {
         return asNavigableMap2().subMap(fromKey, fromInclusive, toKey, toInclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap<K, V> headMap(K toKey, boolean inclusive) {
+    public NavigableMap<@Boxed $K$, @Boxed $V$> headMap(@Boxed $K$ toKey, boolean inclusive) {
         return asNavigableMap2().headMap(toKey, inclusive).asNavigableMap();
     }
 
     @Override
-    public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive) {
+    public NavigableMap<@Boxed $K$, @Boxed $V$> tailMap(@Boxed $K$ fromKey, boolean inclusive) {
         return asNavigableMap2().tailMap(fromKey, inclusive).asNavigableMap();
     }
 
     @Override
-    public Comparator<? super K> comparator() {
+    public Comparator<? super @Boxed $K$> comparator() {
         return that.comparator();
     }
 
     @Override
-    public SortedMap<K, V> subMap(K fromKey, K toKey) {
+    public SortedMap<@Boxed $K$, @Boxed $V$> subMap(@Boxed $K$ fromKey, @Boxed $K$ toKey) {
         return subMap(fromKey, true, toKey, false);
     }
 
     @Override
-    public SortedMap<K, V> headMap(K toKey) {
+    public SortedMap<@Boxed $K$, @Boxed $V$> headMap(@Boxed $K$ toKey) {
         return headMap(toKey, false);
     }
 
     @Override
-    public SortedMap<K, V> tailMap(K fromKey) {
+    public SortedMap<@Boxed $K$, @Boxed $V$> tailMap(@Boxed $K$ fromKey) {
         return tailMap(fromKey, true);
     }
 
     @Override
-    public K firstKey() {
+    public @Boxed $K$ firstKey() {
         return BTreeMap.getEntryKey(firstEntry());
     }
 
     @Override
-    public K lastKey() {
+    public @Boxed $K$ lastKey() {
         return BTreeMap.getEntryKey(lastEntry());
     }
 
     @Override
     public int size() {
         int i = 0;
-        for (Map.Entry<K, V> _e : this.entrySet()) {
+        for (Map.Entry<@Boxed $K$, @Boxed $V$> _e : this.entrySet()) {
             i++;
         }
 
@@ -229,12 +229,12 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public V get(Object key) {
+    public @Boxed $V$ get(Object key) {
         return inRange(key) ? that.get(key) : null;
     }
 
     @Override
-    public V put(K key, V value) {
+    public @Boxed $V$ put(@Boxed $K$ key, @Boxed $V$ value) {
         if (!inRange(key)) {
             throw new IllegalArgumentException("key out of range");
         }
@@ -242,13 +242,13 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public V remove(Object key) {
+    public @Boxed $V$ remove(Object key) {
         return inRange(key) ? that.remove(key) : null;
     }
 
     @Override
-    public void putAll(Map<? extends K, ? extends V> m) {
-        for (Map.Entry<? extends K, ? extends V> e : m.entrySet()) {
+    public void putAll(Map<? extends @Boxed $K$, ? extends @Boxed $V$> m) {
+        for (Map.Entry<? extends @Boxed $K$, ? extends @Boxed $V$> e : m.entrySet()) {
             put(e.getKey(), e.getValue());
         }
     }
@@ -256,7 +256,7 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     @Override
     public void clear() {
         // TODO: fast path?
-        final Iterator<Entry<K, V>> it = entrySet().iterator();
+        final Iterator<Entry<@Boxed $K$, @Boxed $V$>> it = entrySet().iterator();
         while (it.hasNext()) {
             it.next();
             it.remove();
@@ -264,19 +264,19 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
     }
 
     @Override
-    public Set<K> keySet() {
+    public Set<@Boxed $K$> keySet() {
         return navigableKeySet();
     }
 
     @Override
-    public Collection<V> values() {
-        return new MapValueCollection<V>(this);
+    public Collection<@Boxed $V$> values() {
+        return new MapValueCollection<@Boxed $V$>(this);
     }
 
     @Override
-    public Set<Entry<K, V>> entrySet() {
-        return new MapEntrySet<K, V>(this, () -> {
-            final Iterator<Entry<K, V>> it;
+    public Set<Entry<@Boxed $K$, @Boxed $V$>> entrySet() {
+        return new MapEntrySet<@Boxed $K$, @Boxed $V$>(this, () -> {
+            final Iterator<Entry<@Boxed $K$, @Boxed $V$>> it;
             switch (minBound) {
                 case MISSING:   it = that.firstIterator(); break;
                 case INCLUSIVE: it = that.ceilingIterator(min); break;
@@ -293,17 +293,17 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
         });
     }
 
-    NavigableMap2<K, V> asNavigableMap2() {
-        return new NavigableMap2<K, V>() {
+    NavigableMap2<@Boxed $K$, @Boxed $V$> asNavigableMap2() {
+        return new NavigableMap2<@Boxed $K$, @Boxed $V$>() {
             @Override
-            public NavigableMap<K, V> asNavigableMap() {
-                return RestrictedBTreeMap.this;
+            public NavigableMap<@Boxed $K$, @Boxed $V$> asNavigableMap() {
+                return {{KV_}}RestrictedBTreeMap.this;
             }
 
             @Override
-            public Set<Entry<K, V>> descendingEntrySet() {
-                return new MapEntrySet<K, V>(RestrictedBTreeMap.this, () -> {
-                    final Iterator<Entry<K, V>> it;
+            public Set<Entry<@Boxed $K$, @Boxed $V$>> descendingEntrySet() {
+                return new MapEntrySet<@Boxed $K$, @Boxed $V$>({{KV_}}RestrictedBTreeMap.this, () -> {
+                    final Iterator<Entry<@Boxed $K$, @Boxed $V$>> it;
                     switch (maxBound) {
                         case MISSING:   it = that.lastIterator(); break;
                         case INCLUSIVE: it = that.floorIterator(max); break;
@@ -322,24 +322,24 @@ class RestrictedBTreeMap<K, V> implements NavigableMap<K, V> {
             }
 
             @Override
-            public NavigableMap2<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
+            public NavigableMap2<@Boxed $K$, @Boxed $V$> subMap(@Boxed $K$ fromKey, boolean fromInclusive, @Boxed $K$ toKey, boolean toInclusive) {
                 // FIXME: javadoc specifies several sanity checks that should generate a IllegalArgumentException. May need some of these on BTreeMap too. (or in our constructor)
                 return headMap(toKey, toInclusive).tailMap(fromKey, fromInclusive);
             }
 
             @Override
-            public NavigableMap2<K, V> headMap(K toKey, boolean inclusive) {
+            public NavigableMap2<@Boxed $K$, @Boxed $V$> headMap(@Boxed $K$ toKey, boolean inclusive) {
                 if (maxBound.lt(toKey, max, comparator())) {
-                    return new RestrictedBTreeMap<>(that, min, toKey, minBound, Bound.inclusive(inclusive)).asNavigableMap2();
+                    return new RestrictedBTreeMap<$K$, $V$>(that, min, toKey, minBound, Bound.inclusive(inclusive)).asNavigableMap2();
                 } else {
                     return this;
                 }
             }
 
             @Override
-            public NavigableMap2<K, V> tailMap(K fromKey, boolean inclusive) {
+            public NavigableMap2<@Boxed $K$, @Boxed $V$> tailMap(@Boxed $K$ fromKey, boolean inclusive) {
                 if (minBound.lt(min, fromKey, comparator())) {
-                    return new RestrictedBTreeMap<>(that, fromKey, max, Bound.inclusive(inclusive), maxBound).asNavigableMap2();
+                    return new RestrictedBTreeMap<$K$, $V$>(that, fromKey, max, Bound.inclusive(inclusive), maxBound).asNavigableMap2();
                 } else {
                     return this;
                 }

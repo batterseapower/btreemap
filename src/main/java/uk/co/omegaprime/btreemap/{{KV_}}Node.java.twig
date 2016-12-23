@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import java.util.*;
 
 // This is basically a fixed size Object[] with a "int" size field
-final class Node<$K$,$V$> {
+final class Node<$K$,$V$> extends AbstractNode {
     // We're going to do a generalized (2, 3) tree i.e. each internal node will have between m and (2m - 1) children inclusive, for m >= 2
     //
     // What's a sensible value for m? It would be good if each array we allocate fits within one cache line. On Skylake,
@@ -106,22 +106,13 @@ final class Node<$K$,$V$> {
         }
 
         // Object pointer size might differ from Unsafe.ADDRESS_SIZE if compressed OOPs are in use
-        {% if K.isObject %}
-        KEY_SIZE   = UNSAFE.arrayIndexScale(Object[].class);
-        {% else %}
-        KEY_SIZE   = UNSAFE.arrayIndexScale($K$[].class);
-        {% endif %}
-        {% if K.isObject %}
-        VALUE_SIZE = UNSAFE.arrayIndexScale(Object[].class);
-        {% else %}
-        VALUE_SIZE = UNSAFE.arrayIndexScale($V$[].class);
-        {% endif %}
+        KEY_SIZE   = UNSAFE.arrayIndexScale(@Erased $K$[].class);
+        VALUE_SIZE = UNSAFE.arrayIndexScale(@Erased $V$[].class);
 
         KEY_OFFSET0   = verifyInstanceFieldsContiguous("k", KEY_SIZE);
         VALUE_OFFSET0 = verifyInstanceFieldsContiguous("v", VALUE_SIZE);
     }
 
-    public int size;
     private $K$
             k00, k01, k02, k03, k04, k05, k06, k07,
             k08, k09, k10, k11, k12, k13, k14, k15,
@@ -147,7 +138,7 @@ final class Node<$K$,$V$> {
         UNSAFE.put{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE, x);
     }
 
-    public int binarySearch(int fromIndex, int toIndex, @Erased $K$ key, Comparator<$K$> c) {
+    public int binarySearch(int fromIndex, int toIndex, @Erased $K$ key, {{K_}}Comparator c) {
         if (c == null) {
             return binarySearch(fromIndex, toIndex, key);
         }
@@ -169,7 +160,7 @@ final class Node<$K$,$V$> {
         return -(low + 1);  // key not found.
     }
 
-    public int binarySearch(int fromIndex, int toIndex, $K$ key) {
+    public int binarySearch(int fromIndex, int toIndex, @Erased $K$ key) {
         int low = fromIndex;
         int high = toIndex - 1;
 
