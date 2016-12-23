@@ -25,28 +25,39 @@ import static uk.co.omegaprime.btreemap.Node.MIN_FANOUT;
  * {@code Entry} instances returned by this class are immutable and hence do not support the {@link Entry#setValue(Object)} method.
  */
 public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> {
+    /** Create as empty {@code BTreeMap} that uses the natural order of the keys */
     public static <$K$ extends Comparable<? super $K$>, $V$> BTreeMap<$K$, $V$> create() {
         return new BTreeMap<$K$, $V$>(null);
     }
 
-    /** @param comparator If null, the natural order of the keys will be used */
+    /**
+     * Create an empty {@code BTreeMap} that uses a custom comparator on the keys.
+     *
+     * @param comparator If null, the natural order of the keys will be used
+     */
     public static <$K$, $V$> BTreeMap<$K$, $V$> create(Comparator/* wait for it.. */<? super @Boxed $K$> comparator) {
         return new BTreeMap<$K$, $V$>({% if K.isObject() %}comparator{% else %}{{K_}}Comparator.unbox(comparator){% endif %});
     }
 
     {% if K.isPrimitive %}
-    /** @param comparator If null, the natural order of the keys will be used */
+    /**
+     * Create an empty {@code BTreeMap} that uses a custom comparator on the keys.
+     *
+     * @param comparator If null, the natural order of the keys will be used
+     */
     public static <$K$, $V$> BTreeMap<$K$, $V$> create(Comparator<$K$> comparator) {
         return new BTreeMap<$K$, $V$>(comparator);
     }
     {% endif %}
 
+    /** Create a new map that contains the same entries as the specified {@code SortedMap}, and also shares a key ordering with it */
     public static <$K$, $V$> BTreeMap<$K$, $V$> create(SortedMap<@Boxed $K$, ? extends @Boxed $V$> that) {
         final BTreeMap<$K$, $V$> result = create(that.comparator());
         result.putAll(that);
         return result;
     }
 
+    /** Create a new map that contains the same entries as the specified {@code Map}, and uses the natural ordering on the keys */
     public static <$K$, $V$> BTreeMap<$K$, $V$> create(Map<? extends @Boxed $K$, ? extends @Boxed $V$> that) {
         final BTreeMap<$K$, $V$> result = new BTreeMap<$K$, $V$>(null);
         result.putAll(that);
@@ -430,6 +441,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if V.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns the most negative {@code {{V}}} value. */
     public $V$ get{{V.name}}(Object key) {
         return getOrDefault{{V.name}}(key, {{V.dfault}});
     }
@@ -438,6 +450,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if K.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns null. */
     public @Boxed $V$ get($K$ key) {
         return getOrDefault(key, null);
     }
@@ -446,6 +459,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if K.isPrimitive() and V.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns the most negative {@code {{V}}} value. */
     public $V$ get{{V.name}}($K$ key) {
         return getOrDefault{{V.name}}(key, {{V.dfault}});
     }
@@ -492,6 +506,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if K.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns the specified default. */
     public @Boxed $V$ getOrDefault($K$ key, @Boxed $V$ dflt) {
         final Node<$K$, $V$> leaf = findLeaf(key);
 
@@ -509,6 +524,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if V.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns the most negative {@code {{V}}} value. */
     public $V$ getOrDefault{{V.name}}(Object key, $V$ dflt) {
         {% if K.isPrimitive() %}
         if (!(key instanceof @Boxed $K$)) return dflt;
@@ -531,6 +547,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if K.isPrimitive() and V.isPrimitive() %}
 
+    /** Gets the value at the given key. If no such value was found, returns the specified default. */
     public $V$ getOrDefault{{V.name}}($K$ key, $V$ dflt) {
         final Node<$K$, $V$> leaf = findLeaf(key);
 
@@ -563,6 +580,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
     {% if K.isPrimitive() %}
 
+    /** Returns true iff an entry exists in the map with the supplied key. */
     public boolean containsKey($K$ key) {
         final Node<$K$, $V$> leaf = findLeaf(key);
         if (leaf == null) return false;
@@ -578,6 +596,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     @Override
     public @Boxed $V$ put(@Boxed $K$ key, @Boxed $V$ value) {
     {% else %}
+    /** Adds a new entry to the map, and returns the old value associated with this key. If no prior entry existed, returns null. */
     public @Boxed $V$ put($K$ key, $V$ value) {
     {% endif %}
         if (tryPutIntoEmptyMap(key, value)) {
@@ -595,6 +614,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if V.isPrimitive() %}
+    /** Adds a new entry to the map, and returns the old value associated with this key. If no prior entry existed, returns the most negative {@code {{V}}} value. */
     public $V$ put{{V.name}}($K$ key, $V$ value) {
         if (tryPutIntoEmptyMap(key, value)) {
             return {{V.dfault}};
@@ -612,36 +632,21 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
     {% endif %}
 
-    {% if K.isPrimitive() %}
-    {% if V.isObject() %}@Override{% endif %}
-    public @Boxed $V$ put(@Boxed $K$ key, $V$ value) {
-        return put(($K$)key, value);
-    }
-    {% endif %}
-
-    {% if V.isPrimitive() %}
-    {% if K.isObject() %}@Override{% endif %}
-    public @Boxed $V$ put($K$ key, @Boxed $V$ value) {
-        return put(key, ($V$)value);
-    }
-
-    public $V$ put{{V.name}}($K$ key, @Boxed $V$ value) {
-        return put{{V.name}}(key, ($V$)value);
-    }
-    {% endif %}
-
-    {% if K.isPrimitive() and V.isPrimitive() %}
+    {% if K.isPrimitive or V.isPrimitive %}
+    /**
+     * {@inheritDoc}
+     *
+     {% if K.isPrimitive and V.isPrimitive %}
+     * @throws NullPointerException if either the key or value are null
+     {% elseif K.isPrimitive %}
+     * @throws NullPointerException if the key is null
+     {% else %}
+     * @throws NullPointerException if the value is null
+     {% endif %}
+     */
     @Override
     public @Boxed $V$ put(@Boxed $K$ key, @Boxed $V$ value) {
         return put(($K$)key, ($V$)value);
-    }
-
-    public $V$ put{{V.name}}(@Boxed $K$ key, @Boxed $V$ value) {
-        return put{{V.name}}(($K$)key, ($V$)value);
-    }
-
-    public $V$ put{{V.name}}(@Boxed $K$ key, $V$ value) {
-        return put{{V.name}}(($K$)key, value);
     }
     {% endif %}
 
@@ -811,18 +816,22 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     {% for keyMethod in ["lower", "higher", "floor", "ceiling"] %}
 
     {% if K.isPrimitive() %}
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException if the key is null
+     */
     @Override
     public @Boxed $K$ {{keyMethod}}Key(@Boxed $K$ key) {
         return {{keyMethod}}Key(($K$)key);
     }
 
-    public $K$ {{keyMethod}}Key{{K.name}}(@Boxed $K$ key) {
-        return {{keyMethod}}Key{{K.name}}(($K$)key);
-    }
-
+    /** Returns the key of the entry returned by {@link #{{keyMethod}}Entry}, or the most negative {@code {{K}}} value if no such entry exists */
     public $K$ {{keyMethod}}Key{{K.name}}($K$ key) {
         return getEntryKey{{K.name}}({{keyMethod}}Entry(key));
     }
+
+    /** Returns the key of the entry returned by {@link #{{keyMethod}}Entry}, or null if no such entry exists */
     {% else %}
     @Override
     {% endif %}
@@ -834,11 +843,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
 
 
     {% if K.isPrimitive() %}
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException if key is null
+     */
     @Override
     public Entry<@Boxed $K$, @Boxed $V$> lowerEntry(@Boxed $K$ key) {
         return lowerEntry(($K$)key);
     }
 
+    /** Returns the entry with largest key strictly less than {@code key}, or null if no such entry exists */
     public Entry<@Boxed $K$, @Boxed $V$> lowerEntry($K$ key) {
     {% else %}
     @Override
@@ -898,11 +913,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if K.isPrimitive() %}
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException if key is null
+     */
     @Override
     public Entry<@Boxed $K$, @Boxed $V$> floorEntry(@Boxed $K$ key) {
         return floorEntry(($K$)key);
     }
 
+    /** Returns entry with largest key less than or equal to {@code key}, or null if no such entry exists */
     public Entry<@Boxed $K$, @Boxed $V$> floorEntry($K$ key) {
     {% else %}
     @Override
@@ -966,11 +987,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if K.isPrimitive() %}
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException if key is null
+     */
     @Override
     public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry(@Boxed $K$ key) {
         return ceilingEntry(($K$)key);
     }
 
+    /** Returns the entry with smallest key greater than or equal to {@code key}, or null if no such entry exists */
     public Entry<@Boxed $K$, @Boxed $V$> ceilingEntry($K$ key) {
     {% else %}
     @Override
@@ -1034,11 +1061,17 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if K.isPrimitive() %}
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException if key is null
+     */
     @Override
     public Entry<@Boxed $K$, @Boxed $V$> higherEntry(@Boxed $K$ key) {
         return higherEntry(($K$)key);
     }
 
+    /** Returns the entry with smallest key strictly greater than {@code key}, or null if no such entry exists */
     public Entry<@Boxed $K$, @Boxed $V$> higherEntry($K$ key) {
     {% else %}
     @Override
@@ -1229,6 +1262,11 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         return e.getKey();
     }
 
+    /**
+     * Returns the key of the entry that would be returned by {@link #{{fl}}Entry}
+     *
+     * @throws NoSuchElementException if the map is empty
+     */
     public $K$ {{fl}}Key{{K.name}}() {
         final Entry<@Boxed $K$, @Boxed $V$> e = {{fl}}Entry();
         if (e == null) throw new NoSuchElementException();
@@ -1688,6 +1726,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if V.isPrimitive() %}
+    /** Remove the entry with the specified key, returning the value of the removed entry. If no such entry existed, returns the most negative {@code {{V}}} value. */
     public $V$ remove{{V.name}}(Object key) {
         // TODO: fast path avoiding allocation of result?
         final @Boxed $V$ result = remove(key);
@@ -1695,6 +1734,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     }
 
     {% if K.isPrimitive() %}
+    /** Remove the entry with the specified key, returning the value of the removed entry. If no such entry existed, returns the most negative {@code {{V}}} value. */
     public $V$ remove{{V.name}}($K$ key) {
         // TODO: fast path avoiding allocation of result?
         final @Boxed $V$ result = remove(key);
@@ -1713,6 +1753,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         }
     }
 
+    /** Remove the entry with the specified key, returning the value of the removed entry. If no such entry existed, returns null. */
     public @Boxed $V$ remove($K$ key) {
     {% else %}
     @Override
