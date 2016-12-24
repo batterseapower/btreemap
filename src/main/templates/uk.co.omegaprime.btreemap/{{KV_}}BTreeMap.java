@@ -125,7 +125,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 int i;
                 for (i = 0; i < size; i++) {
                     final $K$ checkKey = repr.getKey(i);
-                    final int cmp = comparator.compare(checkKey, key);
+                    final int cmp = comparator.compare{% if K.isPrimitive %}{{K.name}}{% endif %}(checkKey, key);
                     if (cmp == 0) {
                         return i;
                     } else if (cmp > 0) {
@@ -249,7 +249,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 int i;
                 for (i = 0; i < size - 1; i++) {
                     final $K$ checkKey = repr.getKey(i);
-                    if (comparator.compare(checkKey, key) > 0) {
+                    if (comparator.compare{% if K.isPrimitive %}{{K.name}}{% endif %}(checkKey, key) > 0) {
                         return i;
                     }
                 }
