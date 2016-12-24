@@ -93,22 +93,37 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
     private static class Leaf {
         private Leaf() {}
 
-        public static <$K$, $V$> int find(Node<$K$, $V$> keysValues, @Erased $K$ key, {{K_}}Comparator comparator) {
-            final int size = keysValues.size;
+        public static <$K$, $V$> int find(Node<$K$, $V$> repr, @Erased $K$ key, {{K_}}Comparator comparator) {
+            final int size = repr.size;
             if (BINARY_SEARCH) {
-                return keysValues.binarySearch(0, size, key, comparator);
-            } else {
-                for (int i = 0; i < size; i++) {
-                    final $K$ checkKey = keysValues.getKey(i);
-                    final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
-                    if (cmp == 0) {
+                return repr.binarySearch(0, size, key, comparator);
+            } if (comparator == null) {
+                // Tried not exiting early (improves branch prediction) but significantly worse.
+                int i;
+                for (i = 0; i < size - 1; i++) {
+                    final $K$ checkKey = repr.getKey(i);
+                    {% if K.isPrimitive %}
+                    // Avoiding the cast to Comparable is EXTREMELY IMPORTANT for speed (worth 10x)
+                    if (checkKey > key) {
+                    {% else %}
+                    if (((Comparable)checkKey).compareTo(key) > 0) {
+                    {% endif %}
                         return i;
-                    } else if (cmp > 0) {
-                        return -i - 1;
                     }
                 }
 
-                return -size - 1;
+                return i;
+            } else {
+                // Tried not exiting early (improves branch prediction) but significantly worse.
+                int i;
+                for (i = 0; i < size - 1; i++) {
+                    final $K$ checkKey = repr.getKey(i);
+                    if (comparator.compare(checkKey, key) > 0) {
+                        return i;
+                    }
+                }
+
+                return i;
             }
         }
 
@@ -203,14 +218,28 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             if (BINARY_SEARCH) {
                 final int index = repr.binarySearch(0, size - 1, key, comparator);
                 return index < 0 ? -(index + 1) : index + 1;
-            } else {
-                // Tried doing the comparator == null check outside the loop, but not a significant speed boost
+            } else if (comparator == null) {
                 // Tried not exiting early (improves branch prediction) but significantly worse.
                 int i;
                 for (i = 0; i < size - 1; i++) {
                     final $K$ checkKey = repr.getKey(i);
-                    final int cmp = comparator == null ? ((Comparable)checkKey).compareTo(key) : comparator.compare(checkKey, key);
-                    if (cmp > 0) {
+                    {% if K.isPrimitive %}
+                    // Avoiding the cast to Comparable is EXTREMELY IMPORTANT for speed (worth 10x)
+                    if (checkKey > key) {
+                    {% else %}
+                    if (((Comparable)checkKey).compareTo(key) > 0) {
+                    {% endif %}
+                        return i;
+                    }
+                }
+
+                return i;
+            } else {
+                // Tried not exiting early (improves branch prediction) but significantly worse.
+                int i;
+                for (i = 0; i < size - 1; i++) {
+                    final $K$ checkKey = repr.getKey(i);
+                    if (comparator.compare(checkKey, key) > 0) {
                         return i;
                     }
                 }
