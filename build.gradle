@@ -104,9 +104,9 @@ task generateJava << {
 
     EnvironmentConfiguration configuration = new DefaultEnvironmentConfiguration()
 
-    FileTree tree = fileTree(dir: 'src/main/java', include: '**/*.java.twig')
+    FileTree tree = fileTree(dir: 'src/main/templates', include: '**/*.java')
     tree.each { File input ->
-        String relative = file('src/main/java').toPath().relativize(input.getParentFile().toPath()).toString()
+        String relative = file('src/main/templates').toPath().relativize(input.getParentFile().toPath()).toString()
 
         List<TypesProperties> types = []
         if (input.getName().contains('{{KV_}}')) {
@@ -193,7 +193,7 @@ task generateJava << {
             }
         } else if (input.getName().contains('{{K_}}')) {
             for (k in [TypeProperties.object("K")] + TypeProperties.PRIMITIVE) {
-                if (k.isObject() && input.getName().equals("{{K_}}Comparator.java.twig")) {
+                if (k.isObject() && input.getName().equals("{{K_}}Comparator.java")) {
                     // Hack because the JDK already has a boxed comparator
                     continue
                 }
@@ -213,8 +213,8 @@ task generateJava << {
         }
 
         for (TypesProperties type : types) {
-            JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName().replaceAll('[.]java[.]twig$', ''), configuration)
-            String outputFilename = filenameTemplate.render(type.model) + '.java'
+            JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName(), configuration)
+            String outputFilename = filenameTemplate.render(type.model)
 
             List<String> inputLines = input.readLines("UTF-8").collect { type.tweakTemplate(it) }
             JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
@@ -262,9 +262,7 @@ dependencies {
     testCompile group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.17.3'
 }
 
-apply plugin: 'application'
-
-task runBenchmarks(type: JavaExec) {
+task benchmark(type: JavaExec) {
     classpath sourceSets.test.runtimeClasspath
     main = "uk.co.omegaprime.btreemap.BTreeMapBenchmark"
     args "-f2"

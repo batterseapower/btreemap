@@ -97,33 +97,43 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             final int size = repr.size;
             if (BINARY_SEARCH) {
                 return repr.binarySearch(0, size, key, comparator);
-            } if (comparator == null) {
+            } else if (comparator == null) {
                 // Tried not exiting early (improves branch prediction) but significantly worse.
                 int i;
-                for (i = 0; i < size - 1; i++) {
+                for (i = 0; i < size; i++) {
                     final $K$ checkKey = repr.getKey(i);
                     {% if K.isPrimitive %}
-                    // Avoiding the cast to Comparable is EXTREMELY IMPORTANT for speed (worth 10x)
-                    if (checkKey > key) {
-                    {% else %}
-                    if (((Comparable)checkKey).compareTo(key) > 0) {
-                    {% endif %}
+                    // It's very much worth avoiding casting a primitive to Comparable (50% speedup)
+                    if (checkKey == key) {
                         return i;
+                    } else if (checkKey > key) {
+                        return -i - 1;
                     }
+                    {% else %}
+                    final int cmp = ((Comparable)checkKey).compareTo(key);
+                    if (cmp == 0) {
+                        return i;
+                    } else if (cmp > 0) {
+                        return -i - 1;
+                    }
+                    {% endif %}
                 }
 
-                return i;
+                return -size - 1;
             } else {
                 // Tried not exiting early (improves branch prediction) but significantly worse.
                 int i;
-                for (i = 0; i < size - 1; i++) {
+                for (i = 0; i < size; i++) {
                     final $K$ checkKey = repr.getKey(i);
-                    if (comparator.compare(checkKey, key) > 0) {
+                    final int cmp = comparator.compare(checkKey, key);
+                    if (cmp == 0) {
                         return i;
+                    } else if (cmp > 0) {
+                        return -i - 1;
                     }
                 }
 
-                return i;
+                return -size - 1;
             }
         }
 
@@ -277,8 +287,10 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             {{KObject_}}Node.arraycopyValue(node, index + 1, node, index,     size - index);
 
             // Avoid memory leaks
-            {% if K.isObject %}node.setKey  (size - 1, null);{% endif %}
-            {% if V.isObject %}node.setValue(size,    null); {% endif %}
+            {% if K.isObject %}
+            node.setKey  (size - 1, null);
+            {% endif %}
+            node.setValue(size,     null);
         }
 
         public static <$K$> BubbledInsertion<$K$> bubblePutAtIndex(Node<$K$, AbstractNode> repr, int nodeIndex, BubbledInsertion<$K$> toBubble) {
@@ -1001,7 +1013,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                 for (int i = backtrackDepth; i < depth; i++) {
                     final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                     repr = Internal.getNode(internal, index);
-                    index = internal.size - 1;
+                    index = repr.size - 1;
                 }
 
                 leaf = (Node<$K$, $V$>)repr;
@@ -1582,7 +1594,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                     final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)repr;
                     indexes[i] = index;
                     repr = nodes[i] = Internal.getNode(internal, index);
-                    index = internal.size - 1;
+                    index = repr.size - 1;
                 }
 
                 returnIndex = index;
@@ -1792,7 +1804,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             return null;
         }
 
-        final $V$ result = removeCore(rootObjects, depth, key);
+        final @Boxed $V$ result = removeCore(rootObjects, depth, key);
         if (rootObjects.size == 1 && depth > 0) {
             rootObjects = Internal.getNode((Node<$K$, AbstractNode>)rootObjects, 0);
             depth--;
@@ -1825,7 +1837,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
             final Node<$K$, AbstractNode> internal = (Node<$K$, AbstractNode>)node;
             final int index = Internal.find(internal, key, comparator);
             final AbstractNode child = Internal.getNode(internal, index);
-            final $V$ result = removeCore(child, depth - 1, key);
+            final @Boxed $V$ result = removeCore(child, depth - 1, key);
 
             if (child.size < Node.MIN_FANOUT) {
                 assert child.size == Node.MIN_FANOUT - 1;
@@ -1863,8 +1875,10 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                             final AbstractNode predNode = Internal.getNode(predInternal, predSize);
 
                             // Avoid memory leaks
-                            {% if K.isObject %}predInternal.setKey  (predSize - 1, null);{% endif %}
-                            {% if V.isObject %}predInternal.setValue(predSize,     null);{% endif %}
+                            {% if K.isObject %}
+                            predInternal.setKey  (predSize - 1, null);
+                            {% endif %}
+                            predInternal.setValue(predSize,     null);
 
                             {{KObject_}}Node.arraycopyKey  (childInternal, 0, childInternal, 1,  childSize - 1);
                             {{KObject_}}Node.arraycopyValue(childInternal, 0, childInternal, 1, childSize);
@@ -1896,7 +1910,7 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                             final $K$ succKey   = succLeaf.getKey  (0);
                             final $V$ succValue = succLeaf.getValue(0);
 
-                            {{KV_}}Node.arraycopyKey  (succLeaf, 1, succLeaf, 0,   succSize);
+                            {{KV_}}Node.arraycopyKey  (succLeaf, 1, succLeaf, 0, succSize);
                             {{KV_}}Node.arraycopyValue(succLeaf, 1, succLeaf, 0, succSize);
 
                             // Avoid memory leaks
@@ -1917,8 +1931,10 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
                             {{KObject_}}Node.arraycopyValue(succInternal, 1, succInternal, 0, succSize);
 
                             // Avoid memory leaks
-                            {% if K.isObject %}succInternal.setKey  (succSize - 1, null);{% endif %}
-                            {% if V.isObject %}succInternal.setValue(succSize,     null);{% endif %}
+                            {% if K.isObject %}
+                            succInternal.setKey  (succSize - 1, null);
+                            {% endif %}
+                            succInternal.setValue(succSize,     null);
 
                             childInternal.setKey  (childSize, succKey);
                             childInternal.setValue(childSize, succNode);

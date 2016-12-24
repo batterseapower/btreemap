@@ -19,22 +19,22 @@ import static org.junit.Assert.*;
 @RunWith(JUnitQuickcheck.class)
 public class BTreeMapTest {
     private interface Operation {
-        void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual);
+        void apply(NavigableMap<Integer, Integer> expected, NavigableMap<Integer, Integer> actual);
     }
 
     public abstract static class KeyedOperation<T> implements Operation {
         private final String name;
-        private final String key;
-        private final BiFunction<NavigableMap<String, Integer>, String, T> f;
+        private final int key;
+        private final BiFunction<NavigableMap<Integer, Integer>, Integer, T> f;
 
-        public KeyedOperation(String name, String key, BiFunction<NavigableMap<String, Integer>, String, T> f) {
+        public KeyedOperation(String name, Integer key, BiFunction<NavigableMap<Integer, Integer>, Integer, T> f) {
             this.name = name;
             this.key = key;
             this.f = f;
         }
 
         @Override
-        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
+        public void apply(NavigableMap<Integer, Integer> expected, NavigableMap<Integer, Integer> actual) {
             Assert.assertEquals(f.apply(expected, key), f.apply(actual, key));
         }
 
@@ -45,68 +45,68 @@ public class BTreeMapTest {
     }
 
     public static class Get extends KeyedOperation<Integer> {
-        public Get(String key) { super("Get", key, Map::get); }
+        public Get(Integer key) { super("Get", key, Map::get); }
     }
 
     public static class Remove extends KeyedOperation<Integer> {
-        public Remove(String key) { super("Remove", key, Map::remove); }
+        public Remove(Integer key) { super("Remove", key, Map::remove); }
     }
 
-    public static class LowerEntry extends KeyedOperation<Map.Entry<String, Integer>> {
-        public LowerEntry(String key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
+    public static class LowerEntry extends KeyedOperation<Map.Entry<Integer, Integer>> {
+        public LowerEntry(Integer key) { super("LowerEntry", key, NavigableMap::lowerEntry); }
     }
 
-    public static class FloorEntry extends KeyedOperation<Map.Entry<String, Integer>> {
-        public FloorEntry(String key) { super("FloorEntry", key, NavigableMap::floorEntry); }
+    public static class FloorEntry extends KeyedOperation<Map.Entry<Integer, Integer>> {
+        public FloorEntry(Integer key) { super("FloorEntry", key, NavigableMap::floorEntry); }
     }
 
-    public static class HigherEntry extends KeyedOperation<Map.Entry<String, Integer>> {
-        public HigherEntry(String key) { super("HigherEntry", key, NavigableMap::higherEntry); }
+    public static class HigherEntry extends KeyedOperation<Map.Entry<Integer, Integer>> {
+        public HigherEntry(Integer key) { super("HigherEntry", key, NavigableMap::higherEntry); }
     }
 
-    public static class CeilingEntry extends KeyedOperation<Map.Entry<String, Integer>> {
-        public CeilingEntry(String key) { super("CeilingEntry", key, NavigableMap::ceilingEntry); }
+    public static class CeilingEntry extends KeyedOperation<Map.Entry<Integer, Integer>> {
+        public CeilingEntry(Integer key) { super("CeilingEntry", key, NavigableMap::ceilingEntry); }
     }
 
     // Actually a test of our ceilingIterator
     public static class TailMap extends KeyedOperation<Collection<Integer>> {
-        public TailMap(String key) { super("TailMap", key, (m, k) -> new ArrayList<>(m.tailMap(k, true).values())); }
+        public TailMap(Integer key) { super("TailMap", key, (m, k) -> new ArrayList<>(m.tailMap(k, true).values())); }
     }
 
     // Actually a test of our higherIterator
     public static class TailMapExclusive extends KeyedOperation<Collection<Integer>> {
-        public TailMapExclusive(String key) { super("TailMapExclusive", key, (m, k) -> new ArrayList<>(m.tailMap(k, false).values())); }
+        public TailMapExclusive(Integer key) { super("TailMapExclusive", key, (m, k) -> new ArrayList<>(m.tailMap(k, false).values())); }
     }
 
     // Actually a test of our floorIterator
     public static class DescendingTailMap extends KeyedOperation<Collection<Integer>> {
-        public DescendingTailMap(String key) { super("DescendingTailMap", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, true).values())); }
+        public DescendingTailMap(Integer key) { super("DescendingTailMap", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, true).values())); }
     }
 
     // Actually a test of our lowerIterator
     public static class DescendingTailMapExclusive extends KeyedOperation<Collection<Integer>> {
-        public DescendingTailMapExclusive(String key) { super("DescendingTailMapExclusive", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, false).values())); }
+        public DescendingTailMapExclusive(Integer key) { super("DescendingTailMapExclusive", key, (m, k) -> new ArrayList<>(m.descendingMap().tailMap(k, false).values())); }
     }
 
     public static class HeadMap extends KeyedOperation<Collection<Integer>> {
-        public HeadMap(String key) { super("HeadMap", key, (m, k) -> new ArrayList<>(m.headMap(k, true).values())); }
+        public HeadMap(Integer key) { super("HeadMap", key, (m, k) -> new ArrayList<>(m.headMap(k, true).values())); }
     }
 
     public static class HeadMapExclusive extends KeyedOperation<Collection<Integer>> {
-        public HeadMapExclusive(String key) { super("HeadMapExclusive", key, (m, k) -> new ArrayList<>(m.headMap(k, false).values())); }
+        public HeadMapExclusive(Integer key) { super("HeadMapExclusive", key, (m, k) -> new ArrayList<>(m.headMap(k, false).values())); }
     }
 
     public static class UnkeyedOperation<T> implements Operation {
         private final String name;
-        private final Function<NavigableMap<String, Integer>, T> f;
+        private final Function<NavigableMap<Integer, Integer>, T> f;
 
-        public UnkeyedOperation(String name, Function<NavigableMap<String, Integer>, T> f) {
+        public UnkeyedOperation(String name, Function<NavigableMap<Integer, Integer>, T> f) {
             this.name = name;
             this.f = f;
         }
 
         @Override
-        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
+        public void apply(NavigableMap<Integer, Integer> expected, NavigableMap<Integer, Integer> actual) {
             Assert.assertEquals(f.apply(expected), f.apply(actual));
         }
 
@@ -128,24 +128,24 @@ public class BTreeMapTest {
         public DescendingValues() { super("DescendingValues", m -> new ArrayList<>(m.descendingMap().values())); }
     }
 
-    public static class FirstEntry extends UnkeyedOperation<Map.Entry<String, Integer>> {
+    public static class FirstEntry extends UnkeyedOperation<Map.Entry<Integer, Integer>> {
         public FirstEntry() { super("FirstEntry", NavigableMap::firstEntry); }
     }
 
-    public static class LastEntry extends UnkeyedOperation<Map.Entry<String, Integer>> {
+    public static class LastEntry extends UnkeyedOperation<Map.Entry<Integer, Integer>> {
         public LastEntry() { super("LastEntry", NavigableMap::lastEntry); }
     }
 
     public static class Put implements Operation {
-        public final String key;
+        public final int key;
         public final int value;
-        public Put(String key, int value) {
+        public Put(int key, int value) {
             this.key = key;
             this.value = value;
         }
 
         @Override
-        public void apply(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual) {
+        public void apply(NavigableMap<Integer, Integer> expected, NavigableMap<Integer, Integer> actual) {
             Assert.assertEquals(expected.put(key, value), actual.put(key, value));
         }
 
@@ -155,26 +155,9 @@ public class BTreeMapTest {
         }
     }
 
-    private static String randomKey(SourceOfRandomness sor) {
+    private static int randomKey(SourceOfRandomness sor) {
         // Use a small keyspace so that we'll randomly get some collisions. Tests more interesting that way!
-        final int length = sor.nextInt(1, 3);
-        final char[] cs = new char[length];
-        for (int i = 0; i < length; i++) {
-            cs[i] = (char)('a' + sor.nextInt('z' - 'a'));
-        }
-
-        return new String(cs);
-    }
-
-    private static String randomKey(SourceOfRandomness sor, int maxLength) {
-        // Use a small keyspace so that we'll randomly get some collisions. Tests more interesting that way!
-        final int length = sor.nextInt(1, maxLength);
-        final char[] cs = new char[length];
-        for (int i = 0; i < length; i++) {
-            cs[i] = (char)('a' + sor.nextInt('z' - 'a'));
-        }
-
-        return new String(cs);
+        return sor.nextInt(0, 10000);
     }
 
     public static class OperationGenerator extends Generator<Operation> {
@@ -208,73 +191,81 @@ public class BTreeMapTest {
         }
     }
 
-    public static class KeyGenerator extends Generator<String> {
-        public KeyGenerator() { super(String.class); }
+    public static class KeyGenerator extends Generator<Integer> {
+        public KeyGenerator() { super(Integer.class); }
 
         @Override
-        public String generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
+        public Integer generate(SourceOfRandomness sourceOfRandomness, GenerationStatus generationStatus) {
             return randomKey(sourceOfRandomness);
         }
     }
 
+    private static void checkMapInvariants(NavigableMap<?, ?> mp) {
+        if (mp instanceof IntIntBTreeMap) {
+            ((IntIntBTreeMap)mp).checkAssumingKeysNonNull();
+        } else {
+            ((BTreeMap)mp).checkAssumingKeysNonNull();
+        }
+    }
+
     @Property
-    public void randomOperationSequenceOnEmptyMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
-        final TreeMap<String, Integer> expected = new TreeMap<>();
-        final BTreeMap<String, Integer> actual = BTreeMap.create();
+    public void randomOperationSequenceOnEmptyMap(boolean unbox, @com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+        final TreeMap<Integer, Integer> expected = new TreeMap<>();
+        final NavigableMap<Integer, Integer> actual = unbox ? IntIntBTreeMap.create() : BTreeMap.create();
 
         for (Operation op : ops) {
             op.apply(expected, actual);
-            actual.checkAssumingKeysNonNull();
+            checkMapInvariants(actual);
         }
     }
 
     @Property(trials = 1000)
-    public void randomOperationSequenceOnBigMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
-        final TreeMap<String, Integer> expected = new TreeMap<>();
-        final BTreeMap<String, Integer> actual = BTreeMap.create();
+    public void randomOperationSequenceOnBigMap(boolean unbox, @com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+        final TreeMap<Integer, Integer> expected = new TreeMap<>();
+        final NavigableMap<Integer, Integer> actual = unbox ? IntIntBTreeMap.create() : BTreeMap.create();
 
         // Try to make sure we have at least one internal node
         createMaps(expected, actual, 128);
 
         for (Operation op : ops) {
             op.apply(expected, actual);
-            actual.checkAssumingKeysNonNull();
+            checkMapInvariants(actual);
         }
     }
 
     @Property(trials = 1000)
-    public void randomOperationSequenceOnGiantMap(@com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
-        final TreeMap<String, Integer> expected = new TreeMap<>();
-        final BTreeMap<String, Integer> actual = BTreeMap.create();
+    public void randomOperationSequenceOnGiantMap(boolean unbox, @com.pholser.junit.quickcheck.generator.Size(min=4, max=100) List<@From(OperationGenerator.class) Operation> ops) {
+        final TreeMap<Integer, Integer> expected = new TreeMap<>();
+        final NavigableMap<Integer, Integer> actual = unbox ? IntIntBTreeMap.create() : BTreeMap.create();
 
         // Try to make sure we have at least 2 levels of internal nodes
         createMaps(expected, actual, 1024);
 
         for (Operation op : ops) {
             op.apply(expected, actual);
-            actual.checkAssumingKeysNonNull();
+            checkMapInvariants(actual);
         }
     }
 
     @Property
-    public void randomDeletionSequenceOnGiantMap(List<@From(KeyGenerator.class) String> keys) {
-        final TreeMap<String, Integer> expected = new TreeMap<>();
-        final BTreeMap<String, Integer> actual = BTreeMap.create();
+    public void randomDeletionSequenceOnGiantMap(boolean unbox, List<@From(KeyGenerator.class) Integer> keys) {
+        final TreeMap<Integer, Integer> expected = new TreeMap<>();
+        final NavigableMap<Integer, Integer> actual = unbox ? IntIntBTreeMap.create() : BTreeMap.create();
 
         // Try to make sure we have at least 2 levels of internal nodes
         createMaps(expected, actual, 1024);
-        actual.checkAssumingKeysNonNull();
+        checkMapInvariants(actual);
 
-        for (String key : keys) {
+        for (Integer key : keys) {
             assertEquals(expected.remove(key), actual.remove(key));
-            actual.checkAssumingKeysNonNull();
+            checkMapInvariants(actual);
         }
     }
 
-    private static void createMaps(TreeMap<String, Integer> expected, BTreeMap<String, Integer> actual, int maxSize) {
+    private static void createMaps(TreeMap<Integer, Integer> expected, NavigableMap<Integer, Integer> actual, int maxSize) {
         final SourceOfRandomness sor = new SourceOfRandomness(new Random(1337));
         for (int i = 0; i < maxSize; i++) {
-            final String key = randomKey(sor);
+            final int key = randomKey(sor);
             expected.put(key, i);
             actual  .put(key, i);
         }
