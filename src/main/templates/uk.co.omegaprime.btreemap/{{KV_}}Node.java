@@ -125,10 +125,10 @@ final class Node<$K$,$V$> extends AbstractNode {
             v24, v25, v26, v27, v28, v29, v30;
 
     public $K$ getKey  (int i) {
-        return ({{K.boxed}})UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
+        return ($K$)UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
     }
     public $V$ getValue(int i) {
-        return ({{V.boxed}})UNSAFE.get{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE);
+        return ($V$)UNSAFE.get{{V.name}}(this, VALUE_OFFSET0 + i * VALUE_SIZE);
     }
 
     public void setKey  (int i, $K$ x) {

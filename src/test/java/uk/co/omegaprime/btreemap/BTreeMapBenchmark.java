@@ -1,5 +1,6 @@
 package uk.co.omegaprime.btreemap;
 
+import org.mapdb.DBMaker;
 import org.openjdk.jmh.Main;
 import org.openjdk.jmh.annotations.*;
 
@@ -16,9 +17,11 @@ public class BTreeMapBenchmark {
     public static class MyState {
         public final Random random = new Random();
         public final NavigableMap<Integer, Integer> warmedMap =
-                IntIntBTreeMap.create();
-                //BTreeMap.create();
+                //new it.unimi.dsi.fastutil.ints.Int2IntAVLTreeMap();
+                //IntIntBTreeMap.create();
+                BTreeMap.create();
                 //new TreeMap<>();
+                //DBMaker.newMemoryDB().make().createTreeMap("foo").make();
         public Integer key;
 
         private int nextKey() {

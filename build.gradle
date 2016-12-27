@@ -260,12 +260,15 @@ dependencies {
     testCompile group: 'com.pholser', name: 'junit-quickcheck-core', version: '0.7'
     testCompile group: 'com.pholser', name: 'junit-quickcheck-generators', version: '0.7'
     testCompile group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.17.3'
+
+    //testCompile group: 'it.unimi.dsi', name: 'fastutil', version: '7.0.13'
+    //testCompile group: 'org.mapdb', name: 'mapdb', version: '1.0.9'
 }
 
 task benchmark(type: JavaExec) {
     classpath sourceSets.test.runtimeClasspath
     main = "uk.co.omegaprime.btreemap.BTreeMapBenchmark"
-    args "-f2"
+    args "-f1"
 }
 
 // I don't like writing JavaDoc for every param individually.
