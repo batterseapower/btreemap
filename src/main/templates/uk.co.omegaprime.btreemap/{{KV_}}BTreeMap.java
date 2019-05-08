@@ -371,6 +371,15 @@ public class BTreeMap<$K$, $V$> implements NavigableMap<@Boxed $K$, @Boxed $V$> 
         this.comparator = comparator;
     }
 
+    @Override
+    public {{KV_}}BTreeMap clone() {
+        final {{KV_}}BTreeMap result = new {{KV_}}BTreeMap(this.comparator);
+        result.depth = this.depth;
+        result.size = this.size;
+        result.rootObjects = this.rootObjects == null ? null : this.rootObjects.clone(this.depth);
+        return result;
+    }
+
     void checkAssumingKeysNonNull() {
         if (rootObjects != null) {
             checkCore(rootObjects, depth, null, null, Bound.MISSING, Bound.MISSING);

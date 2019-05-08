@@ -1,5 +1,9 @@
 package uk.co.omegaprime.btreemap;
 
-class AbstractNode {
+abstract class AbstractNode {
     public int size;
+
+    @Override
+    public abstract AbstractNode clone();
+    public abstract AbstractNode clone(int depth);
 }

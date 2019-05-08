@@ -463,4 +463,33 @@ public class BTreeMapTest {
             assertEquals(Integer.valueOf(i), map.remove(Integer.toString(i)));
         }
     }
+
+    @Test
+    public void cloneWorks() {
+        final BTreeMap<String, Integer> oldMap = BTreeMap.create();
+
+        for (int i = 0; i < 500; i++) {
+            oldMap.put(Integer.toString(2*i), i);
+        }
+
+        assertEquals(oldMap.size(),  500);
+        assertTrue(oldMap.containsKey("500"));
+        assertFalse(oldMap.containsKey("501"));
+
+
+        final BTreeMap<String, Integer> newMap = oldMap.clone();
+
+        for (int i = 0; i < 500; i++) {
+            newMap.put(Integer.toString(2*i + 1), i);
+        }
+
+        assertEquals(oldMap.size(),  500);
+        assertEquals(newMap.size(), 1000);
+
+        assertTrue(oldMap.containsKey("500"));
+        assertTrue(newMap.containsKey("500"));
+
+        assertFalse(oldMap.containsKey("501"));
+        assertTrue (newMap.containsKey("501"));
+    }
 }

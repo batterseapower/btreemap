@@ -124,6 +124,39 @@ final class Node<$K$,$V$> extends AbstractNode {
             v16, v17, v18, v19, v20, v21, v22, v23,
             v24, v25, v26, v27, v28, v29, v30;
 
+    @Override
+    public Node<$K$, $V$> clone() {
+        final Node<$K$, $V$> result = new Node<$K$, $V$>();
+        result.size = this.size;
+        for (int i = 0; i < size; i++) {
+            result.setKey  (i, this.getKey(i));
+            result.setValue(i, this.getValue(i));
+        }
+        return result;
+    }
+
+    public Node<$K$, $V$> clone(int depth) {
+        assert depth >= 0;
+        if (depth > 0) {
+            {% if V.isPrimitive() %}
+            throw new IllegalArgumentException("Can't use depth > 1 since this is a primitive node");
+            {% else %}
+            final Node<$K$, $V$> result = new Node<$K$, $V$>();
+            result.size = this.size;
+            for (int i = 0; i < size; i++) {
+                final $V$ value = this.getValue(i);
+                final $V$ newValue = ($V$)AbstractNode.class.cast(value).clone(depth - 1);
+
+                result.setKey  (i, this.getKey(i));
+                result.setValue(i, newValue);
+            }
+            return result;
+            {% endif %}
+        } else {
+            return this.clone();
+        }
+    }
+
     public $K$ getKey  (int i) {
         return ($K$)UNSAFE.get{{K.name}}(this, KEY_OFFSET0   + i * KEY_SIZE);
     }
