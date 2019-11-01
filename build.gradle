@@ -235,6 +235,14 @@ task generateJava {
     }
 }
 
+apply plugin: "idea"
+sourceSets.main.java.srcDir new File("${buildDir}/generated-src")
+idea {
+    module {
+        generatedSourceDirs += file("${buildDir}/generated-src")
+    }
+}
+
 compileJava {
     dependsOn generateJava
     source "${buildDir}/generated-src"
