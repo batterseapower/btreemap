@@ -99,136 +99,147 @@ abstract class TypesProperties {
 }
 
 // There's no two ways about it: this is extremely ugly. But it does get the job done, and it doesn't impact library users.
-task generateJava << {
-    delete fileTree(dir: "${buildDir}/generated-src")
+task generateJava {
+    doLast{
+        delete fileTree(dir: "${buildDir}/generated-src")
 
-    EnvironmentConfiguration configuration = new DefaultEnvironmentConfiguration()
+        EnvironmentConfiguration configuration = new DefaultEnvironmentConfiguration()
 
-    FileTree tree = fileTree(dir: 'src/main/templates', include: '**/*.java')
-    tree.each { File input ->
-        String relative = file('src/main/templates').toPath().relativize(input.getParentFile().toPath()).toString()
+        FileTree tree = fileTree(dir: 'src/main/templates', include: '**/*.java')
+        tree.each { File input ->
+            String relative = file('src/main/templates').toPath().relativize(input.getParentFile().toPath()).toString()
 
-        List<TypesProperties> types = []
-        if (input.getName().contains('{{KV_}}')) {
-            for (k in [TypeProperties.object("K")] + TypeProperties.PRIMITIVE) {
-                for (v in [TypeProperties.object("V")] + TypeProperties.PRIMITIVE) {
-                    final String kPrefix, kvPrefix, kObjectPrefix, kTyReplacement, kvTyReplacement, kvComparableTyReplacement,
-                                 kObjectTyReplacement, kvsupTyReplacement, ksupvTyReplacement, ksupTyReplacement, ksupvsupTyReplacement
-                    if (k.isObject() && v.isObject()) {
-                        kPrefix = ''
-                        kvPrefix = ''
-                        kObjectPrefix = ''
-                        kTyReplacement = '<K>'
-                        ksupTyReplacement = '<? super K>'
-                        kvTyReplacement = '<K,V>'
-                        kvComparableTyReplacement = '<K extends Comparable<? super K>, V>'
-                        kObjectTyReplacement = '<K, AbstractNode>'
-                        kvsupTyReplacement = '<?, ? super V>'
-                        ksupvTyReplacement = '<? super K, ?>'
-                        ksupvsupTyReplacement = '<? super K, ? super V>'
-                    } else if (k.isObject()) {
-                        kPrefix = ''
-                        kvPrefix = 'Object' + v.name
-                        kObjectPrefix = ''
-                        kTyReplacement = '<K>'
-                        ksupTyReplacement = '<? super K>'
-                        kvTyReplacement = '<K>'
-                        kvComparableTyReplacement = '<K extends Comparable<? super K>>'
-                        kObjectTyReplacement = '<K, AbstractNode>'
-                        kvsupTyReplacement = '<?>'
-                        ksupvTyReplacement = '<? super K>'
-                        ksupvsupTyReplacement = '<? super K>'
-                    } else if (v.isObject()) {
-                        kPrefix = k.name
-                        kvPrefix = k.name + 'Object'
-                        kObjectPrefix = k.name + 'Object'
-                        kTyReplacement = ''
-                        ksupTyReplacement = ''
-                        kvTyReplacement = kvComparableTyReplacement = '<V>'
-                        kObjectTyReplacement = '<Object>'
-                        kvsupTyReplacement = '<? super V>'
-                        ksupvTyReplacement = '<?>'
-                        ksupvsupTyReplacement = '<? super V>'
-                    } else {
-                        kPrefix = k.name
-                        kvPrefix = k.name + v.name
-                        kObjectPrefix = k.name + 'Object'
-                        kTyReplacement = ''
-                        ksupTyReplacement = ''
-                        kvTyReplacement = kvComparableTyReplacement = ''
-                        kObjectTyReplacement = ''
-                        kvsupTyReplacement = ''
-                        ksupvTyReplacement = ''
-                        ksupvsupTyReplacement = ''
-                    }
+            List<TypesProperties> types = []
+            if (input.getName().contains('{{KV_}}')) {
+                for (k in [TypeProperties.object("K")] + TypeProperties.PRIMITIVE) {
+                    for (v in [TypeProperties.object("V")] + TypeProperties.PRIMITIVE) {
+                        String kPrefix, kvPrefix, kObjectPrefix, kTyReplacement, kvTyReplacement, kvComparableTyReplacement,
+                               kObjectTyReplacement, kvsupTyReplacement, ksupvTyReplacement, ksupTyReplacement, ksupvsupTyReplacement
+                        if (k.isObject() && v.isObject()) {
+                            kPrefix = ''
+                            kvPrefix = ''
+                            kObjectPrefix = ''
+                            kTyReplacement = '<K>'
+                            ksupTyReplacement = '<? super K>'
+                            kvTyReplacement = '<K,V>'
+                            kvComparableTyReplacement = '<K extends Comparable<? super K>, V>'
+                            kObjectTyReplacement = '<K, AbstractNode>'
+                            kvsupTyReplacement = '<?, ? super V>'
+                            ksupvTyReplacement = '<? super K, ?>'
+                            ksupvsupTyReplacement = '<? super K, ? super V>'
+                        } else if (k.isObject()) {
+                            kPrefix = ''
+                            kvPrefix = 'Object' + v.name
+                            kObjectPrefix = ''
+                            kTyReplacement = '<K>'
+                            ksupTyReplacement = '<? super K>'
+                            kvTyReplacement = '<K>'
+                            kvComparableTyReplacement = '<K extends Comparable<? super K>>'
+                            kObjectTyReplacement = '<K, AbstractNode>'
+                            kvsupTyReplacement = '<?>'
+                            ksupvTyReplacement = '<? super K>'
+                            ksupvsupTyReplacement = '<? super K>'
+                        } else if (v.isObject()) {
+                            kPrefix = k.name
+                            kvPrefix = k.name + 'Object'
+                            kObjectPrefix = k.name + 'Object'
+                            kTyReplacement = ''
+                            ksupTyReplacement = ''
+                            kvTyReplacement = kvComparableTyReplacement = '<V>'
+                            kObjectTyReplacement = '<Object>'
+                            kvsupTyReplacement = '<? super V>'
+                            ksupvTyReplacement = '<?>'
+                            ksupvsupTyReplacement = '<? super V>'
+                        } else {
+                            kPrefix = k.name
+                            kvPrefix = k.name + v.name
+                            kObjectPrefix = k.name + 'Object'
+                            kTyReplacement = ''
+                            ksupTyReplacement = ''
+                            kvTyReplacement = kvComparableTyReplacement = ''
+                            kObjectTyReplacement = ''
+                            kvsupTyReplacement = ''
+                            ksupvTyReplacement = ''
+                            ksupvsupTyReplacement = ''
+                        }
 
-                    types.add(new TypesProperties(JtwigModel.newModel()
+                        types.add(new TypesProperties(JtwigModel.newModel()
                                 .with("K", k).with("V", v)
                                 .with("K_", k.isObject() ? "" : k.name)
                                 .with("KV_", kvPrefix)
                                 .with("KObject_", kObjectPrefix)) {
+                            String tweakTemplate(String line) {
+                                return line.replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>[.]class', kvPrefix + '$1.class')
+                                        .replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>', kvPrefix + '$1' + kvTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[$]K[$], ?AbstractNode>', kObjectPrefix + '$1' + kObjectTyReplacement)
+                                        .replaceAll('<[$]K[$] extends Comparable<[?] super [$]K[$]>, [$]V[$]>', kvComparableTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[?], ?[?] super [$]V[$]>', kvPrefix + '$1' + kvsupTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?]>', kvPrefix + '$1' + ksupvTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?] super [$]V[$]>', kvPrefix + '$1' + ksupvsupTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[?] super (@Boxed )?[$]K[$]>', kPrefix + '$1' + ksupTyReplacement)
+                                        .replaceAll('<[$]K[$], ?[$]V[$]>', kvTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', kPrefix + '$1' + kTyReplacement)
+                                        .replaceAll('<[$]K[$]>', kTyReplacement)
+                                        .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                                        .replace('@Erased @Boxed $V$', '{{V.erasedBoxed}}')
+                                        .replace('@Erased $K$', '{{K.erased}}')
+                                        .replace('@Erased $V$', '{{V.erased}}')
+                                        .replace('@Boxed $K$', '{{K.boxed}}')
+                                        .replace('@Boxed $V$', '{{V.boxed}}')
+                                        .replace('$K$', '{{K.unboxed}}')
+                                        .replace('$V$', '{{V.unboxed}}')
+                            }
+                        })
+                    }
+                }
+            } else if (input.getName().contains('{{K_}}')) {
+                for (k in [TypeProperties.object("K")] + TypeProperties.PRIMITIVE) {
+                    if (k.isObject() && input.getName().equals("{{K_}}Comparator.java")) {
+                        // Hack because the JDK already has a boxed comparator
+                        continue
+                    }
+
+                    types.add(new TypesProperties(JtwigModel.newModel()
+                            .with("K", k)
+                            .with("K_", k.isObject() ? "" : k.name)) {
+                        @Override
                         String tweakTemplate(String line) {
-                            return line.replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>[.]class', kvPrefix + '$1.class')
-                                       .replaceAll('([A-Za-z]+)<[$]K[$], ?[$]V[$]>', kvPrefix + '$1' + kvTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[$]K[$], ?AbstractNode>', kObjectPrefix + '$1' + kObjectTyReplacement)
-                                       .replaceAll('<[$]K[$] extends Comparable<[?] super [$]K[$]>, [$]V[$]>', kvComparableTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[?], ?[?] super [$]V[$]>', kvPrefix + '$1' + kvsupTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?]>', kvPrefix + '$1' + ksupvTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[?] super [$]K[$], ?[?] super [$]V[$]>', kvPrefix + '$1' + ksupvsupTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[?] super (@Boxed )?[$]K[$]>', kPrefix + '$1' + ksupTyReplacement)
-                                       .replaceAll('<[$]K[$], ?[$]V[$]>', kvTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[$]K[$]>', kPrefix + '$1' + kTyReplacement)
-                                       .replaceAll('<[$]K[$]>', kTyReplacement)
-                                       .replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
-                                       .replace('@Erased @Boxed $V$', '{{V.erasedBoxed}}')
-                                       .replace('@Erased $K$', '{{K.erased}}')
-                                       .replace('@Erased $V$', '{{V.erased}}')
-                                       .replace('@Boxed $K$', '{{K.boxed}}')
-                                       .replace('@Boxed $V$', '{{V.boxed}}')
-                                       .replace('$K$', '{{K.unboxed}}')
-                                       .replace('$V$', '{{V.unboxed}}')
+                            return line.replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
+                                    .replace('$K$', '{{K.unboxed}}')
                         }
                     })
                 }
+            } else {
+                throw new IllegalStateException("Found template ${input} that didn't have any obvious filename pattern")
             }
-        } else if (input.getName().contains('{{K_}}')) {
-            for (k in [TypeProperties.object("K")] + TypeProperties.PRIMITIVE) {
-                if (k.isObject() && input.getName().equals("{{K_}}Comparator.java")) {
-                    // Hack because the JDK already has a boxed comparator
-                    continue
+
+            for (TypesProperties type : types) {
+                JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName(), configuration)
+                String outputFilename = filenameTemplate.render(type.model)
+
+                List<String> inputLines = input.readLines("UTF-8").collect { type.tweakTemplate(it) }
+                JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
+                String output = fileTemplate.render(type.model)
+
+                File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
+                outputFile.getParentFile().mkdirs()
+
+                if (!java.nio.file.Files.notExists(outputFile.toPath())) {
+                    throw new IOException("Can't write to ${outputFile} twice")
                 }
 
-                types.add(new TypesProperties(JtwigModel.newModel()
-                        .with("K", k)
-                        .with("K_", k.isObject() ? "" : k.name)) {
-                    @Override
-                    String tweakTemplate(String line) {
-                        return line.replaceAll('([A-Za-z]+)<[$]K[$]>', '{{K_}}$1')
-                                   .replace('$K$', '{{K.unboxed}}')
-                    }
-                })
+                outputFile.write(output)
             }
-        } else {
-            throw new IllegalStateException("Found template ${input} that didn't have any obvious filename pattern")
         }
 
-        for (TypesProperties type : types) {
-            JtwigTemplate filenameTemplate = JtwigTemplate.inlineTemplate(input.getName(), configuration)
-            String outputFilename = filenameTemplate.render(type.model)
+    }
+}
 
-            List<String> inputLines = input.readLines("UTF-8").collect { type.tweakTemplate(it) }
-            JtwigTemplate fileTemplate = JtwigTemplate.inlineTemplate(inputLines.join("\n"), configuration)
-            String output = fileTemplate.render(type.model)
-
-            File outputFile = new File(file("${buildDir}/generated-src/${relative}"), outputFilename)
-            outputFile.getParentFile().mkdirs()
-
-            if (!java.nio.file.Files.notExists(outputFile.toPath())) {
-                throw new IOException("Can't write to ${outputFile} twice")
-            }
-
-            outputFile.write(output)
-        }
+apply plugin: "idea"
+sourceSets.main.java.srcDir new File("${buildDir}/generated-src")
+idea {
+    module {
+        generatedSourceDirs += file("${buildDir}/generated-src")
     }
 }
 
